@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XBRL Disclosure Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'] },
+        extend: {
+          colors: {
+            primary: { 100:'#EFF6FF', 200:'#DBEAFE', 300:'#BFDBFE', 400:'#93C5FD', 500:'#60A5FA', 600:'#3B82F6', 700:'#2563EB', 800:'#1D4ED8', 900:'#1E40AF', 1000:'#172554' },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    h1,.h1{font-size:1.875rem;line-height:2.25rem;font-weight:700;letter-spacing:-0.025em;color:#0f172a}
+    h2,.h2{font-size:1.5rem;line-height:2rem;font-weight:600;letter-spacing:-0.02em;color:#1e293b}
+    h3,.h3{font-size:1.125rem;line-height:1.75rem;font-weight:600;color:#334155}
+    @media(max-width:768px){h1,.h1{font-size:1.5rem;line-height:2rem}h2,.h2{font-size:1.25rem;line-height:1.75rem}}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+    @keyframes progressFill{from{width:0%}}.progress-bar{animation:progressFill 1s ease-out}
+    .nav-item{transition:all .15s ease}
+    .card-hover{transition:box-shadow .2s ease,transform .2s ease}.card-hover:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-1px)}
+    .xbrl-tag-monetary{background:rgba(59,130,246,.12);border-bottom:2px solid #3B82F6;cursor:pointer;transition:background .15s}
+    .xbrl-tag-monetary:hover{background:rgba(59,130,246,.22)}
+    .xbrl-tag-text{background:rgba(16,185,129,.1);border-bottom:2px solid #10B981;cursor:pointer}.xbrl-tag-text:hover{background:rgba(16,185,129,.2)}
+    .xbrl-tag-date{background:rgba(245,158,11,.1);border-bottom:2px solid #F59E0B;cursor:pointer}.xbrl-tag-date:hover{background:rgba(245,158,11,.2)}
+    .xbrl-tag-selected{outline:2px solid #3B82F6;outline-offset:1px;border-radius:2px}
+    @keyframes taggablePulse{0%,100%{border-color:rgba(59,130,246,.4)}50%{border-color:rgba(59,130,246,.9)}}
+    .xbrl-taggable{border:1.5px dashed rgba(59,130,246,.5);border-radius:3px;padding:0 3px;cursor:crosshair;animation:taggablePulse 1.5s ease-in-out infinite}
+    .xbrl-taggable:hover{background:rgba(59,130,246,.15);border-style:solid}
+    .xbrl-tag-hovered{background:rgba(59,130,246,.28);border-bottom-color:#2563EB;outline:1.5px solid rgba(37,99,235,.5);outline-offset:1px;border-radius:2px}
+    .xbrl-row-hovered{background:rgba(59,130,246,.06)}
+    .toast-enter{animation:toastIn .3s ease-out}
+    @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body class="bg-gray-50 font-sans antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── Icons ──
+    const Icons = {
+      Dashboard: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" /></svg>,
+      Filing: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+      Financial: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
+      Notes: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+      Validate: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+      XBRL: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>,
+      Settings: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+      Clock: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+      Check: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>,
+      Warning: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+      ArrowRight: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>,
+      Calendar: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+      Bell: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+      Chevron: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>,
+      Menu: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>,
+      Close: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>,
+      Search: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+      Folder: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>,
+      Tag: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>,
+      Download: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
+      Eye: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+      Plus: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
+      Crosshair: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>,
+      Link: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
+    };
+
+    // ── Data ──
+    const COMPANY = { name: 'Amazon.com, Inc.', ticker: 'AMZN', cik: '0001018724', fiscalYearEnd: 'December 31', filerCategory: 'Large Accelerated Filer', sic: '5961 - Catalog & Mail-Order Houses' };
+    const PRIOR_QUARTER = { revenue: '$180.2B', netIncome: '$21.2B', operatingIncome: '$17.4B', eps: '$1.95', awsRevenue: '$33.0B', period: 'Q3 2025' };
+
+    const disclosureSections = [
+      { category: 'Cover Page', items: [
+        { name: 'Entity Information', status: 'complete', tags: 18, errors: 0 },
+        { name: 'Document & Period Information', status: 'complete', tags: 12, errors: 0 },
+      ]},
+      { category: 'Financial Statements', items: [
+        { name: 'Consolidated Balance Sheets', status: 'in-review', tags: 87, errors: 2 },
+        { name: 'Consolidated Statements of Operations', status: 'in-review', tags: 42, errors: 0 },
+        { name: 'Consolidated Statements of Comprehensive Income', status: 'in-progress', tags: 28, errors: 1 },
+        { name: 'Consolidated Statements of Cash Flows', status: 'not-started', tags: 64, errors: 0 },
+        { name: 'Consolidated Statements of Stockholders\u2019 Equity', status: 'not-started', tags: 35, errors: 0 },
+      ]},
+      { category: 'Notes to Financial Statements', items: [
+        { name: 'Note 1 \u2013 Accounting Policies', status: 'complete', tags: 8, errors: 0 },
+        { name: 'Note 2 \u2013 Financial Instruments', status: 'in-progress', tags: 54, errors: 3 },
+        { name: 'Note 3 \u2013 Property and Equipment', status: 'not-started', tags: 22, errors: 0 },
+        { name: 'Note 4 \u2013 Leases', status: 'not-started', tags: 38, errors: 0 },
+        { name: 'Note 5 \u2013 Debt', status: 'not-started', tags: 19, errors: 0 },
+        { name: 'Note 6 \u2013 Commitments & Contingencies', status: 'not-started', tags: 14, errors: 0 },
+        { name: 'Note 7 \u2013 Stockholders\u2019 Equity', status: 'not-started', tags: 26, errors: 0 },
+        { name: 'Note 8 \u2013 Revenue', status: 'in-progress', tags: 32, errors: 1 },
+        { name: 'Note 9 \u2013 Income Taxes', status: 'not-started', tags: 20, errors: 0 },
+        { name: 'Note 10 \u2013 Segment Information', status: 'not-started', tags: 45, errors: 0 },
+        { name: 'Note 11 \u2013 Earnings Per Share', status: 'not-started', tags: 16, errors: 0 },
+      ]},
+      { category: 'Other Disclosures', items: [
+        { name: 'MD&A', status: 'not-started', tags: 0, errors: 0 },
+        { name: 'Risk Factors', status: 'not-started', tags: 0, errors: 0 },
+        { name: 'Market Risk Disclosures', status: 'not-started', tags: 0, errors: 0 },
+        { name: 'Controls and Procedures', status: 'not-started', tags: 0, errors: 0 },
+      ]},
+    ];
+
+    const validationIssues = [
+      { severity: 'error', section: 'Balance Sheets', message: 'Assets != Liabilities + Equity (off by $2M)', rule: 'BS-01' },
+      { severity: 'error', section: 'Balance Sheets', message: 'Missing us-gaap:CashAndCashEquivalentsAtCarryingValue', rule: 'DQC-0004' },
+      { severity: 'error', section: 'Financial Instruments', message: 'Negative value for AvailableForSaleSecurities', rule: 'DQC-0015' },
+      { severity: 'error', section: 'Financial Instruments', message: 'Incorrect sign on unrealized gains/losses', rule: 'DQC-0080' },
+      { severity: 'error', section: 'Financial Instruments', message: 'Calculation inconsistency in fair value hierarchy', rule: 'DQC-0044' },
+      { severity: 'warning', section: 'Comprehensive Income', message: 'Missing dimensional breakdown for OCI', rule: 'DQC-0043' },
+      { severity: 'warning', section: 'Revenue', message: 'Revenue disaggregation does not sum to total', rule: 'DQC-0099' },
+    ];
+
+    const tenQFilings = [
+      { period: 'Q1 2026', periodEnd: 'Mar 31, 2026', deadline: 'May 10, 2026', status: 'in-progress', pct: 22, accession: 'Pending' },
+      { period: 'Q3 2025', periodEnd: 'Sep 30, 2025', deadline: 'Nov 9, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000123' },
+      { period: 'Q2 2025', periodEnd: 'Jun 30, 2025', deadline: 'Aug 9, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000078' },
+      { period: 'Q1 2025', periodEnd: 'Mar 31, 2025', deadline: 'May 10, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000036' },
+    ];
+    const tenQParts = [
+      { part: 'Part I \u2013 Financial Information', items: [
+        { item: 'Item 1', name: 'Financial Statements', status: 'in-progress', desc: 'Condensed consolidated financial statements including balance sheets, income statements, comprehensive income, cash flows, and stockholders\u2019 equity with accompanying notes.', assignee: 'Jane Doe', due: 'Apr 10' },
+        { item: 'Item 2', name: 'Management\u2019s Discussion & Analysis', status: 'not-started', desc: 'MD&A covering results of operations, liquidity and capital resources, and critical accounting estimates.', assignee: 'Mike Chen', due: 'Apr 18' },
+        { item: 'Item 3', name: 'Quantitative & Qualitative Disclosures About Market Risk', status: 'not-started', desc: 'Interest rate risk, foreign currency risk, and equity price risk exposures.', assignee: 'Sarah Kim', due: 'Apr 20' },
+        { item: 'Item 4', name: 'Controls and Procedures', status: 'not-started', desc: 'Disclosure controls effectiveness evaluation and changes in internal control over financial reporting.', assignee: 'Mike Chen', due: 'Apr 22' },
+      ]},
+      { part: 'Part II \u2013 Other Information', items: [
+        { item: 'Item 1', name: 'Legal Proceedings', status: 'not-started', desc: 'Material pending legal proceedings and updates to prior disclosures.', assignee: 'Legal Team', due: 'Apr 25' },
+        { item: 'Item 1A', name: 'Risk Factors', status: 'not-started', desc: 'Material changes to risk factors previously disclosed in the 10-K.', assignee: 'Sarah Kim', due: 'Apr 25' },
+        { item: 'Item 2', name: 'Unregistered Sales of Equity Securities & Use of Proceeds', status: 'not-started', desc: 'Share repurchase activity and any unregistered equity issuances.', assignee: 'Jane Doe', due: 'Apr 28' },
+        { item: 'Item 5', name: 'Other Information', status: 'not-started', desc: 'Information required to be reported on Form 8-K during the quarter.', assignee: 'Mike Chen', due: 'Apr 30' },
+        { item: 'Item 6', name: 'Exhibits', status: 'not-started', desc: 'Certifications (302/906), XBRL instance document, and other required exhibits.', assignee: 'Jane Doe', due: 'May 5' },
+      ]},
+    ];
+    const filingWorkflowStages = [
+      { label: 'Drafting', status: 'active' },
+      { label: 'Internal Review', status: 'pending' },
+      { label: 'XBRL Tagging', status: 'pending' },
+      { label: 'Validation', status: 'pending' },
+      { label: 'Final Review', status: 'pending' },
+      { label: 'SEC Filing', status: 'pending' },
+    ];
+
+    // ── 10-K Filing Data (real Amazon data) ──
+    const tenKFilings = [
+      { period: 'FY 2026', periodEnd: 'Dec 31, 2026', filingDate: null, deadline: 'Mar 1, 2027', status: 'in-progress', pct: 8, accession: 'Pending',
+        revenue: null, netIncome: null, operatingIncome: null, eps: null,
+        bs: null, bsPrior: null, priorLabel: null, segments: null,
+      },
+      { period: 'FY 2025', periodEnd: 'Dec 31, 2025', filingDate: 'Feb 6, 2026', deadline: 'Mar 2, 2026', status: 'filed', pct: 100, accession: '0001018724-26-000002',
+        revenue: '$716.9B', netIncome: '$77.7B', operatingIncome: '$80.0B', eps: '$7.17',
+        bs: { cash:86810,sti:36219,ar:67729,inv:38325,oca:11383,tca:229083,ppe:443079,rou:122607,gw:23273,oa:0,ta:818042,ap:121909,ae:75520,ur:20576,tcl:218005,ltd:65648,oll:87339,olt:35985,tl:406977,se:411065,tle:818042 },
+        bsPrior: { cash:78779,sti:22423,ar:55451,inv:34214,oca:10566,tca:190867,ppe:328806,rou:82147,gw:23074,oa:0,ta:624894,ap:94363,ae:66965,ur:18103,tcl:179431,ltd:52623,oll:78277,olt:28593,tl:338924,se:285970,tle:624894 },
+        priorLabel: 'Dec 31, 2024',
+        segments: { na:'$426.3B', intl:'$161.9B', aws:'$128.7B' },
+      },
+      { period: 'FY 2024', periodEnd: 'Dec 31, 2024', filingDate: 'Feb 6, 2025', deadline: 'Mar 1, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000004',
+        revenue: '$638.0B', netIncome: '$59.2B', operatingIncome: '$68.6B', eps: '$5.53',
+        bs: { cash:78779,sti:22423,ar:55451,inv:34214,oca:10566,tca:190867,ppe:328806,rou:82147,gw:23074,oa:0,ta:624894,ap:94363,ae:66965,ur:18103,tcl:179431,ltd:52623,oll:78277,olt:28593,tl:338924,se:285970,tle:624894 },
+        bsPrior: { cash:73387,sti:13393,ar:52253,inv:33318,oca:10766,tca:172351,ppe:276690,rou:56024,gw:22789,oa:0,ta:527854,ap:84981,ae:64709,ur:15227,tcl:164917,ltd:58314,oll:77297,olt:25451,tl:325979,se:201875,tle:527854 },
+        priorLabel: 'Dec 31, 2023',
+        segments: { na:'$387.7B', intl:'$142.9B', aws:'$107.6B' },
+      },
+    ];
+
+    const tenKWorkflowStages = [
+      { label: 'Drafting', status: 'active' },
+      { label: 'Audit Review', status: 'pending' },
+      { label: 'Internal Review', status: 'pending' },
+      { label: 'XBRL Tagging', status: 'pending' },
+      { label: 'Validation', status: 'pending' },
+      { label: 'Final Review', status: 'pending' },
+      { label: 'SEC Filing', status: 'pending' },
+    ];
+
+    const tenKParts = [
+      { part: 'Part I \u2013 Business & Risk', items: [
+        { item: 'Item 1', name: 'Business', status: 'in-progress', desc: 'Description of the company\u2019s business, including principal products/services, competitive conditions, seasonality, and government regulation.', assignee: 'Mike Chen', due: 'Jan 10' },
+        { item: 'Item 1A', name: 'Risk Factors', status: 'in-progress', desc: 'Material risks facing the company, including competition, regulatory, macroeconomic, technology infrastructure, and cybersecurity risks.', assignee: 'Sarah Kim', due: 'Jan 12' },
+        { item: 'Item 1B', name: 'Unresolved Staff Comments', status: 'not-started', desc: 'Any unresolved comments from SEC staff on prior filings.', assignee: 'Legal Team', due: 'Jan 15' },
+        { item: 'Item 1C', name: 'Cybersecurity', status: 'not-started', desc: 'Cybersecurity risk management, strategy, and governance disclosures required under Regulation S-K Item 106.', assignee: 'Sarah Kim', due: 'Jan 18' },
+        { item: 'Item 2', name: 'Properties', status: 'not-started', desc: 'Description of principal physical properties including fulfillment centers, data centers, and corporate offices.', assignee: 'Mike Chen', due: 'Jan 15' },
+        { item: 'Item 3', name: 'Legal Proceedings', status: 'not-started', desc: 'Material pending legal proceedings, including antitrust, IP, employment, and regulatory matters.', assignee: 'Legal Team', due: 'Jan 20' },
+        { item: 'Item 4', name: 'Mine Safety Disclosures', status: 'complete', desc: 'Not applicable for Amazon.', assignee: 'Jane Doe', due: 'Jan 5' },
+      ]},
+      { part: 'Part II \u2013 Financial Information', items: [
+        { item: 'Item 5', name: 'Market for Common Equity', status: 'not-started', desc: 'Stock market information, share repurchase programs, and dividend policy.', assignee: 'Jane Doe', due: 'Jan 22' },
+        { item: 'Item 6', name: '[Reserved]', status: 'complete', desc: 'This item has been reserved and is no longer required.', assignee: 'Jane Doe', due: 'Jan 5' },
+        { item: 'Item 7', name: 'Management\u2019s Discussion & Analysis', status: 'not-started', desc: 'Comprehensive MD&A covering results of operations by segment, liquidity, capital resources, and critical accounting estimates.', assignee: 'Mike Chen', due: 'Jan 28' },
+        { item: 'Item 7A', name: 'Market Risk Disclosures', status: 'not-started', desc: 'Interest rate, foreign currency, equity investment, and credit risk quantitative and qualitative disclosures.', assignee: 'Sarah Kim', due: 'Jan 30' },
+        { item: 'Item 8', name: 'Financial Statements', status: 'not-started', desc: 'Audited consolidated financial statements: balance sheets, income statements, comprehensive income, cash flows, stockholders\u2019 equity, and notes.', assignee: 'Jane Doe', due: 'Feb 5' },
+        { item: 'Item 9', name: 'Changes in Accountants', status: 'not-started', desc: 'Disagreements with accountants on accounting and financial disclosure.', assignee: 'Jane Doe', due: 'Feb 8' },
+        { item: 'Item 9A', name: 'Controls and Procedures', status: 'not-started', desc: 'Management\u2019s report on internal control over financial reporting and disclosure controls evaluation.', assignee: 'Mike Chen', due: 'Feb 10' },
+        { item: 'Item 9B', name: 'Other Information', status: 'not-started', desc: 'Any information required to be disclosed on Form 8-K during Q4 that was not reported.', assignee: 'Mike Chen', due: 'Feb 12' },
+        { item: 'Item 9C', name: 'Foreign Jurisdictions Disclosure', status: 'not-started', desc: 'Disclosure regarding foreign jurisdictions that prevent inspection.', assignee: 'Legal Team', due: 'Feb 12' },
+      ]},
+      { part: 'Part III \u2013 Governance & Compensation', items: [
+        { item: 'Item 10', name: 'Directors & Corporate Governance', status: 'not-started', desc: 'Information about directors, executive officers, code of ethics, and audit committee financial expert. May be incorporated by reference from proxy statement.', assignee: 'Legal Team', due: 'Feb 15' },
+        { item: 'Item 11', name: 'Executive Compensation', status: 'not-started', desc: 'Compensation discussion and analysis, summary compensation table, and pay-versus-performance disclosure.', assignee: 'Legal Team', due: 'Feb 15' },
+        { item: 'Item 12', name: 'Security Ownership', status: 'not-started', desc: 'Beneficial ownership of common stock by directors, officers, and 5% holders, and equity compensation plan information.', assignee: 'Sarah Kim', due: 'Feb 18' },
+        { item: 'Item 13', name: 'Certain Relationships', status: 'not-started', desc: 'Related person transactions and director independence disclosures.', assignee: 'Legal Team', due: 'Feb 18' },
+        { item: 'Item 14', name: 'Principal Accountant Fees', status: 'not-started', desc: 'Audit fees, audit-related fees, tax fees, and other fees paid to Ernst & Young LLP.', assignee: 'Jane Doe', due: 'Feb 20' },
+      ]},
+      { part: 'Part IV \u2013 Exhibits', items: [
+        { item: 'Item 15', name: 'Exhibits & Financial Schedules', status: 'not-started', desc: 'Index of exhibits including certifications (302/906), XBRL instance document, and other required exhibits.', assignee: 'Jane Doe', due: 'Feb 22' },
+        { item: 'Item 16', name: 'Form 10-K Summary', status: 'not-started', desc: 'Optional summary of the annual report.', assignee: 'Mike Chen', due: 'Feb 25' },
+      ]},
+    ];
+
+    // ── Enriched XBRL Taxonomy ──
+    const taxonomyElements = {
+      'dei:EntityRegistrantName': { label: 'Entity Registrant Name', dataType: 'normalizedStringItemType', periodType: 'duration', balance: null, doc: 'The exact name of the entity filing the report as specified in its charter, which is required along with the CIK for EDGAR submissions.' },
+      'dei:TradingSymbol': { label: 'Trading Symbol', dataType: 'normalizedStringItemType', periodType: 'duration', balance: null, doc: 'Trading symbol of an instrument as listed on an exchange.' },
+      'dei:DocumentPeriodEndDate': { label: 'Document Period End Date', dataType: 'dateItemType', periodType: 'duration', balance: null, doc: 'For the EDGAR submission types of Form 10-Q and 10-K, the end date of the period covered by the document.' },
+      'dei:DocumentType': { label: 'Document Type', dataType: 'normalizedStringItemType', periodType: 'duration', balance: null, doc: 'The type of document being provided (such as 10-K, 10-Q, 485BPOS, etc).' },
+      'us-gaap:Assets': { label: 'Assets', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Sum of the carrying amounts as of the balance sheet date of all assets that are recognized. Assets are probable future economic benefits obtained or controlled by an entity.' },
+      'us-gaap:CashAndCashEquivalentsAtCarryingValue': { label: 'Cash and Cash Equivalents, at Carrying Value', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount of currency on hand as well as demand deposits with banks or financial institutions. Includes short-term, highly liquid investments that are both readily convertible to known amounts of cash and so near their maturity that they present insignificant risk of changes in value.' },
+      'us-gaap:ShortTermInvestments': { label: 'Short-Term Investments', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount of investments including trading securities, available-for-sale securities, held-to-maturity securities, and short-term investments classified as other and current.' },
+      'us-gaap:AccountsReceivableNetCurrent': { label: 'Accounts Receivable, Net, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount, after allowance for credit loss, of right to consideration in exchange for good or service transferred to customer when right is conditioned on something other than passage of time, classified as current.' },
+      'us-gaap:InventoryNet': { label: 'Inventory, Net', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount after valuation and LIFO reserves of inventory expected to be sold, or consumed within one year or operating cycle, if longer.' },
+      'us-gaap:AssetsCurrent': { label: 'Assets, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Sum of the carrying amounts as of the balance sheet date of all assets that are expected to be realized in cash, sold, or consumed within one year (or the normal operating cycle, if longer).' },
+      'us-gaap:PropertyPlantAndEquipmentNet': { label: 'Property, Plant and Equipment, Net', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount after accumulated depreciation, depletion and amortization of physical assets used in the normal conduct of business to produce goods and services.' },
+      'us-gaap:Goodwill': { label: 'Goodwill', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount after accumulated impairment loss of an asset representing future economic benefits arising from other assets acquired in a business combination that are not individually identified and separately recognized.' },
+      'us-gaap:Liabilities': { label: 'Liabilities', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Sum of the carrying amounts as of the balance sheet date of all liabilities that are recognized. Liabilities are probable future sacrifices of economic benefits arising from present obligations.' },
+      'us-gaap:StockholdersEquity': { label: 'Stockholders\u2019 Equity', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Total of all stockholders\u2019 equity (deficit) items, net of receivables from officers, directors, owners, and affiliates of the entity.' },
+      'us-gaap:AccountsPayableCurrent': { label: 'Accounts Payable, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Carrying value as of the balance sheet date of liabilities incurred and payable to vendors for goods and services received that are used in an entity\'s business.' },
+      'us-gaap:AccruedLiabilitiesCurrent': { label: 'Accrued Liabilities, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Carrying value as of the balance sheet date of obligations incurred and payable, pertaining to costs that are statutory in nature, are incurred on contractual obligations, or accumulate over time.' },
+      'us-gaap:ContractWithCustomerLiabilityCurrent': { label: 'Unearned Revenue, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Amount of obligation to transfer good or service to customer for which consideration has been received or is receivable, classified as current.' },
+      'us-gaap:LiabilitiesCurrent': { label: 'Liabilities, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Total obligations incurred as part of normal operations that are expected to be paid during the following twelve months or within one business cycle.' },
+      'us-gaap:LongTermDebtNoncurrent': { label: 'Long-Term Debt, Noncurrent', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Amount after unamortized discount and premium of long-term debt classified as noncurrent and excluding amounts to be repaid within one year.' },
+      'us-gaap:OperatingLeaseLiabilityNoncurrent': { label: 'Operating Lease Liability, Noncurrent', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Present value of lessee\'s discounted obligation for lease payments from operating lease, classified as noncurrent.' },
+      'us-gaap:LiabilitiesAndStockholdersEquity': { label: 'Liabilities and Equity', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Amount of liabilities and equity items, including the portion of equity attributable to noncontrolling interests, if any.' },
+      'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax': { label: 'Revenue from Contract with Customer', dataType: 'monetaryItemType', periodType: 'duration', balance: 'credit', doc: 'Amount, excluding tax collected from customer, of revenue from satisfaction of performance obligation by transferring promised good or service to customer.' },
+      'us-gaap:CostOfGoodsAndServicesSold': { label: 'Cost of Revenue', dataType: 'monetaryItemType', periodType: 'duration', balance: 'debit', doc: 'The aggregate cost of goods produced and sold and services rendered during the reporting period.' },
+      'us-gaap:OperatingIncomeLoss': { label: 'Operating Income (Loss)', dataType: 'monetaryItemType', periodType: 'duration', balance: 'credit', doc: 'The net result for the period of deducting operating expenses from operating revenues.' },
+      'us-gaap:NetIncomeLoss': { label: 'Net Income (Loss)', dataType: 'monetaryItemType', periodType: 'duration', balance: 'credit', doc: 'The portion of profit or loss for the period, net of income taxes, which is attributable to the parent.' },
+      'us-gaap:NetCashProvidedByOperatingActivities': { label: 'Net Cash from Operating Activities', dataType: 'monetaryItemType', periodType: 'duration', balance: null, doc: 'Amount of cash inflow (outflow) from operating activities, including discontinued operations.' },
+      'us-gaap:NetCashProvidedByInvestingActivities': { label: 'Net Cash from Investing Activities', dataType: 'monetaryItemType', periodType: 'duration', balance: null, doc: 'Amount of cash inflow (outflow) from investing activities, including discontinued operations.' },
+      'us-gaap:NetCashProvidedByFinancingActivities': { label: 'Net Cash from Financing Activities', dataType: 'monetaryItemType', periodType: 'duration', balance: null, doc: 'Amount of cash inflow (outflow) from financing activities, including discontinued operations.' },
+      'us-gaap:OtherAssetsCurrent': { label: 'Other Assets, Current', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount of current assets classified as other.' },
+      'us-gaap:OperatingLeaseRightOfUseAsset': { label: 'Operating Lease Right-of-Use Asset', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount of lessee\'s right to use underlying asset under operating lease.' },
+      'us-gaap:OtherAssetsNoncurrent': { label: 'Other Assets, Noncurrent', dataType: 'monetaryItemType', periodType: 'instant', balance: 'debit', doc: 'Amount of noncurrent assets classified as other.' },
+      'us-gaap:OtherLiabilitiesNoncurrent': { label: 'Other Liabilities, Noncurrent', dataType: 'monetaryItemType', periodType: 'instant', balance: 'credit', doc: 'Amount of liabilities classified as other, due after one year or the normal operating cycle, if longer.' },
+    };
+
+    const taxonomyTree = [
+      { id: 'dei', label: 'Document & Entity Information', children: ['dei:EntityRegistrantName','dei:TradingSymbol','dei:DocumentPeriodEndDate','dei:DocumentType'] },
+      { id: 'us-gaap-bs', label: 'Statement \u2013 Balance Sheet', children: ['us-gaap:Assets','us-gaap:CashAndCashEquivalentsAtCarryingValue','us-gaap:ShortTermInvestments','us-gaap:AccountsReceivableNetCurrent','us-gaap:InventoryNet','us-gaap:OtherAssetsCurrent','us-gaap:AssetsCurrent','us-gaap:PropertyPlantAndEquipmentNet','us-gaap:OperatingLeaseRightOfUseAsset','us-gaap:Goodwill','us-gaap:OtherAssetsNoncurrent','us-gaap:Liabilities','us-gaap:AccountsPayableCurrent','us-gaap:AccruedLiabilitiesCurrent','us-gaap:ContractWithCustomerLiabilityCurrent','us-gaap:LiabilitiesCurrent','us-gaap:LongTermDebtNoncurrent','us-gaap:OperatingLeaseLiabilityNoncurrent','us-gaap:OtherLiabilitiesNoncurrent','us-gaap:StockholdersEquity','us-gaap:LiabilitiesAndStockholdersEquity'] },
+      { id: 'us-gaap-is', label: 'Statement \u2013 Income', children: ['us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax','us-gaap:CostOfGoodsAndServicesSold','us-gaap:OperatingIncomeLoss','us-gaap:NetIncomeLoss'] },
+      { id: 'us-gaap-cf', label: 'Statement \u2013 Cash Flows', children: ['us-gaap:NetCashProvidedByOperatingActivities','us-gaap:NetCashProvidedByInvestingActivities','us-gaap:NetCashProvidedByFinancingActivities'] },
+    ];
+
+    // Document rows: each row in the balance sheet with a concept mapping
+    const docRows = [
+      { id: 'r1', label: 'Cash and cash equivalents', val1: '$73,387', val2: '$78,747', concept: 'us-gaap:CashAndCashEquivalentsAtCarryingValue', indent: 1 },
+      { id: 'r2', label: 'Short-term investments', val1: '$18,034', val2: '$17,200', concept: 'us-gaap:ShortTermInvestments', indent: 1 },
+      { id: 'r3', label: 'Accounts receivable, net', val1: '$42,412', val2: '$40,872', concept: 'us-gaap:AccountsReceivableNetCurrent', indent: 1 },
+      { id: 'r4', label: 'Inventories', val1: '$35,987', val2: '$33,318', concept: 'us-gaap:InventoryNet', indent: 1 },
+      { id: 'r5', label: 'Other current assets', val1: '$11,383', val2: '$10,766', concept: 'us-gaap:OtherAssetsCurrent', indent: 1 },
+      { id: 'r6', label: 'Total current assets', val1: '$181,203', val2: '$180,903', concept: 'us-gaap:AssetsCurrent', indent: 2, bold: true, borderTop: true },
+      { id: 'r7', label: 'Property and equipment, net', val1: '$186,715', val2: '$176,839', concept: 'us-gaap:PropertyPlantAndEquipmentNet', indent: 1, spaceBefore: true },
+      { id: 'r8', label: 'Operating lease right-of-use assets', val1: '$72,642', val2: '$69,890', concept: 'us-gaap:OperatingLeaseRightOfUseAsset', indent: 1 },
+      { id: 'r9', label: 'Goodwill', val1: '$22,749', val2: '$22,749', concept: 'us-gaap:Goodwill', indent: 1 },
+      { id: 'r10', label: 'Other assets', val1: '$28,366', val2: '$27,529', concept: 'us-gaap:OtherAssetsNoncurrent', indent: 1 },
+      { id: 'r11', label: 'Total assets', val1: '$462,675', val2: '$477,910', concept: 'us-gaap:Assets', indent: 0, bold: true, borderTop: 'double' },
+      { id: 'r12', label: 'Accounts payable', val1: '$79,632', val2: '$84,981', concept: 'us-gaap:AccountsPayableCurrent', indent: 1, spaceBefore: true, sectionHeader: 'LIABILITIES AND STOCKHOLDERS\u2019 EQUITY' },
+      { id: 'r13', label: 'Accrued expenses', val1: '$62,571', val2: '$68,480', concept: 'us-gaap:AccruedLiabilitiesCurrent', indent: 1 },
+      { id: 'r14', label: 'Unearned revenue', val1: '$16,873', val2: '$15,227', concept: 'us-gaap:ContractWithCustomerLiabilityCurrent', indent: 1 },
+      { id: 'r15', label: 'Total current liabilities', val1: '$159,076', val2: '$168,688', concept: 'us-gaap:LiabilitiesCurrent', indent: 2, bold: true, borderTop: true },
+      { id: 'r16', label: 'Long-term debt', val1: '$52,463', val2: '$52,079', concept: 'us-gaap:LongTermDebtNoncurrent', indent: 1, spaceBefore: true },
+      { id: 'r17', label: 'Operating lease liabilities', val1: '$65,048', val2: '$62,069', concept: 'us-gaap:OperatingLeaseLiabilityNoncurrent', indent: 1 },
+      { id: 'r18', label: 'Other long-term liabilities', val1: '$24,981', val2: '$25,570', concept: 'us-gaap:OtherLiabilitiesNoncurrent', indent: 1 },
+      { id: 'r19', label: 'Total liabilities', val1: '$301,568', val2: '$308,406', concept: 'us-gaap:Liabilities', indent: 0, bold: true, borderTop: true },
+      { id: 'r20', label: 'Total stockholders\u2019 equity', val1: '$161,107', val2: '$169,504', concept: 'us-gaap:StockholdersEquity', indent: 0, bold: true, spaceBefore: true },
+      { id: 'r21', label: 'Total liabilities and stockholders\u2019 equity', val1: '$462,675', val2: '$477,910', concept: 'us-gaap:LiabilitiesAndStockholdersEquity', indent: 0, bold: true, borderTop: 'double' },
+    ];
+
+    const initialTags = [
+      { id: 1, concept: 'us-gaap:CashAndCashEquivalentsAtCarryingValue', rowId: 'r1', value: '73387000000', displayValue: '$73,387', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'tagged' },
+      { id: 2, concept: 'us-gaap:ShortTermInvestments', rowId: 'r2', value: '18034000000', displayValue: '$18,034', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'tagged' },
+      { id: 3, concept: 'us-gaap:AccountsReceivableNetCurrent', rowId: 'r3', value: '42412000000', displayValue: '$42,412', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'tagged' },
+      { id: 4, concept: 'us-gaap:InventoryNet', rowId: 'r4', value: '35987000000', displayValue: '$35,987', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'tagged' },
+      { id: 5, concept: 'us-gaap:AssetsCurrent', rowId: 'r6', value: '181203000000', displayValue: '$181,203', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'review' },
+      { id: 6, concept: 'us-gaap:PropertyPlantAndEquipmentNet', rowId: 'r7', value: '186715000000', displayValue: '$186,715', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'tagged' },
+      { id: 7, concept: 'us-gaap:Goodwill', rowId: 'r9', value: '22749000000', displayValue: '$22,749', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'tagged' },
+      { id: 8, concept: 'us-gaap:Assets', rowId: 'r11', value: '462675000000', displayValue: '$462,675', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'error' },
+    ];
+
+    // ── Utility ──
+    function getStatusColor(s) { return s==='complete'?'bg-emerald-100 text-emerald-700':s==='in-review'?'bg-amber-100 text-amber-700':s==='in-progress'?'bg-primary-100 text-primary-700':'bg-gray-100 text-gray-500'; }
+    function getStatusLabel(s) { return s==='complete'?'Complete':s==='in-review'?'In Review':s==='in-progress'?'In Progress':s==='not-started'?'Not Started':s==='filed'?'Filed':s; }
+    function computeProgress() { const a=disclosureSections.flatMap(s=>s.items),t=a.length,c=a.filter(i=>i.status==='complete').length,r=a.filter(i=>i.status==='in-review').length,p=a.filter(i=>i.status==='in-progress').length,n=a.filter(i=>i.status==='not-started').length;return{total:t,complete:c,inReview:r,inProgress:p,notStarted:n,pct:Math.round(((c+r*.7+p*.3)/t)*100)};}
+    function findParentNode(elementId) { return taxonomyTree.find(n => n.children.includes(elementId)); }
+
+    // ── Sidebar ──
+    function Sidebar({ activePage, onNavigate, mobileOpen, onMobileClose }) {
+      const navSections = [
+        { label: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: Icons.Dashboard }] },
+        { label: 'FILINGS', items: [{ id: 'filings-10q', label: '10-Q Filings', icon: Icons.Filing },{ id: 'filings-10k', label: '10-K Filings', icon: Icons.Filing }] },
+        { label: 'DISCLOSURES', items: [{ id: 'financial-statements', label: 'Financial Statements', icon: Icons.Financial },{ id: 'notes', label: 'Notes', icon: Icons.Notes },{ id: 'xbrl-tagging', label: 'XBRL Tagging', icon: Icons.XBRL },{ id: 'validation', label: 'Validation', icon: Icons.Validate }] },
+        { label: 'SYSTEM', items: [{ id: 'settings', label: 'Settings', icon: Icons.Settings }] },
+      ];
+      const sidebarContent = (
+        <div className="flex flex-col h-full">
+          <div className="h-14 flex items-center justify-between px-4 border-b border-gray-200 shrink-0">
+            <div className="flex items-center gap-2"><div className="w-7 h-7 bg-primary-600 rounded-lg flex items-center justify-center"><span className="text-white font-bold text-xs">X</span></div><div><span className="font-bold text-gray-900 text-sm tracking-tight">XBRL Disclose</span><span className="block text-[9px] text-gray-400 font-medium -mt-0.5 tracking-wide">SEC FILING MANAGER</span></div></div>
+            <button onClick={onMobileClose} className="lg:hidden p-1 text-gray-400 hover:text-gray-600"><Icons.Close /></button>
+          </div>
+          <div className="px-3 py-2.5 border-b border-gray-100">
+            <button className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-50 rounded-lg text-left hover:bg-gray-100 transition-colors">
+              <div className="flex items-center gap-2 min-w-0"><div className="w-5 h-5 bg-primary-900 rounded flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">A</span></div><div className="min-w-0"><div className="text-xs font-semibold text-gray-800 truncate">Amazon.com, Inc.</div><div className="text-[10px] text-gray-400">AMZN</div></div></div>
+              <Icons.Chevron />
+            </button>
+          </div>
+          <nav className="flex-1 overflow-y-auto py-2 px-2.5">
+            {navSections.map(section=><div key={section.label} className="mb-3"><div className="px-2.5 mb-1 text-[10px] font-semibold text-gray-400 tracking-widest">{section.label}</div>{section.items.map(item=>{const isActive=activePage===item.id;const Icon=item.icon;return<button key={item.id} onClick={()=>{onNavigate(item.id);onMobileClose();}} className={`nav-item w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] font-medium mb-px ${isActive?'bg-primary-50 text-primary-700':'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}><span className={isActive?'text-primary-600':'text-gray-400'}><Icon /></span>{item.label}</button>})}</div>)}
+          </nav>
+          <div className="px-3 py-2.5 border-t border-gray-100 shrink-0"><div className="bg-primary-50 rounded-lg p-2.5"><div className="flex items-center gap-1.5 mb-0.5"><Icons.Clock /><span className="text-xs font-semibold text-primary-800">Q1 2026 10-Q</span></div><div className="text-[11px] text-primary-600 font-medium">Due May 10, 2026</div><div className="text-[10px] text-primary-500">55 days remaining</div></div></div>
+        </div>
+      );
+      return (<><aside className="hidden lg:flex w-60 bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0 z-30">{sidebarContent}</aside>{mobileOpen&&<div className="lg:hidden fixed inset-0 z-40"><div className="absolute inset-0 bg-black/30" onClick={onMobileClose}></div><aside className="relative w-64 max-w-[80vw] bg-white h-full shadow-xl">{sidebarContent}</aside></div>}</>);
+    }
+
+    function Header({ title, subtitle, onMenuClick }) {
+      return (
+        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shrink-0">
+          <div className="flex items-center gap-3 min-w-0"><button onClick={onMenuClick} className="lg:hidden p-1 text-gray-500 hover:text-gray-700"><Icons.Menu /></button><div className="min-w-0"><h1 className="text-sm lg:text-base font-semibold text-gray-900 truncate">{title}</h1><p className="text-[11px] text-gray-400 truncate -mt-px">{subtitle}</p></div></div>
+          <div className="flex items-center gap-2"><button className="relative p-1.5 text-gray-400 hover:text-gray-600 transition-colors"><Icons.Bell /><span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span></button><div className="w-px h-7 bg-gray-200 hidden sm:block"></div><div className="hidden sm:flex items-center gap-2"><div className="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center"><span className="text-white text-[10px] font-semibold">JD</span></div><div className="text-right hidden md:block"><div className="text-xs font-medium text-gray-700">Jane Doe</div><div className="text-[10px] text-gray-400">SEC Reporting</div></div></div></div>
+        </header>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    // DASHBOARD (unchanged from previous)
+    // ══════════════════════════════════════════
+    function DeadlineCard(){const d=55;return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full"><div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-2"><div><h2 className="text-sm font-semibold text-gray-900">Filing Timeline</h2><p className="text-xs text-gray-500 mt-0.5">10-Q for period ending March 31, 2026</p></div><div className="flex items-center gap-1.5 text-primary-700 shrink-0"><Icons.Calendar /><div><span className="text-xs font-semibold">May 10, 2026</span><p className="text-[10px] text-gray-400">SEC Deadline</p></div></div></div><div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4"><div className="bg-primary-600 text-white rounded-xl px-4 py-2.5 text-center shrink-0"><div className="text-xl font-bold">{d}</div><div className="text-[10px] font-medium text-primary-200">days left</div></div><div className="flex-1 grid grid-cols-3 gap-2 w-full">{[{v:'15',l:'to Q1 close'},{v:'30',l:'to int. review'},{v:'40',l:'to validation'}].map((x,i)=><div key={i} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center"><div className="text-base font-bold text-gray-800">{x.v}</div><div className="text-[9px] text-gray-400 font-medium">{x.l}</div></div>)}</div></div><div className="relative"><div className="h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-primary-500 rounded-full progress-bar" style={{width:'0%'}}></div></div><div className="flex justify-between mt-1.5">{['Q1 Ends|Mar 31','Internal Review|Apr 15','XBRL Validation|Apr 25','SEC Filing|May 10'].map((m,i)=>{const[l,dd]=m.split('|');return<div key={i} className="text-center"><div className="text-[9px] font-semibold text-gray-600">{l}</div><div className="text-[9px] text-gray-400">{dd}</div></div>})}</div></div></div>}
+    function OverallProgress(){const p=computeProgress();return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full"><h2 className="text-sm font-semibold text-gray-900 mb-3">Disclosure Completion</h2><div className="flex items-center gap-4"><div className="relative w-24 h-24 shrink-0"><svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" strokeWidth="8"/><circle cx="50" cy="50" r="42" fill="none" stroke="#3B82F6" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${p.pct*2.64} ${264-p.pct*2.64}`} className="transition-all duration-1000"/></svg><div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-xl font-bold text-gray-900">{p.pct}%</span><span className="text-[9px] text-gray-400 font-medium">complete</span></div></div><div className="flex-1 space-y-2">{[['Complete','bg-emerald-500',p.complete],['In Review','bg-amber-500',p.inReview],['In Progress','bg-primary-500',p.inProgress],['Not Started','bg-gray-300',p.notStarted]].map(([l,c,v],i)=><div key={i} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${c}`}></div><span className="text-[11px] text-gray-600">{l}</span></div><span className="text-[11px] font-semibold text-gray-800">{v}/{p.total}</span></div>)}</div></div></div>}
+    function PriorQuarterCard(){const m=[{label:'Net Revenue',value:PRIOR_QUARTER.revenue,sub:'+13% YoY'},{label:'Net Income',value:PRIOR_QUARTER.netIncome,sub:'EPS: '+PRIOR_QUARTER.eps},{label:'Operating Income',value:PRIOR_QUARTER.operatingIncome,sub:'ex. $4.3B charges'},{label:'AWS Revenue',value:PRIOR_QUARTER.awsRevenue,sub:'+20% YoY'}];return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full"><div className="flex items-center justify-between mb-3"><h2 className="text-sm font-semibold text-gray-900">Prior Quarter</h2><span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">{PRIOR_QUARTER.period}</span></div><div className="grid grid-cols-2 gap-2">{m.map((x,i)=><div key={i} className="bg-gray-50 rounded-lg p-2.5"><div className="text-[10px] text-gray-400 font-medium">{x.label}</div><div className="text-base font-bold text-gray-900">{x.value}</div><div className="text-[10px] text-gray-500">{x.sub}</div></div>)}</div><p className="text-[9px] text-gray-400 mt-2">Source: SEC EDGAR (CIK: {COMPANY.cik})</p></div>}
+    function QuickActions(){return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full"><h2 className="text-sm font-semibold text-gray-900 mb-3">Next Steps</h2><div className="space-y-2">{[{l:'Continue Tagging',d:'Comprehensive Income',p:true},{l:'Review Submission',d:'Balance Sheets',p:false},{l:'Start Cash Flows',d:'Not yet started',p:false}].map((a,i)=><button key={i} className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between transition-colors ${a.p?'bg-primary-600 hover:bg-primary-700 text-white':'bg-gray-50 hover:bg-gray-100 text-gray-800'}`}><div><div className={`text-xs font-medium ${a.p?'text-white':'text-gray-800'}`}>{a.l}</div><div className={`text-[10px] ${a.p?'text-primary-200':'text-gray-400'}`}>{a.d}</div></div><span className={a.p?'text-primary-200':'text-gray-400'}><Icons.ArrowRight /></span></button>)}</div></div>}
+    function ValidationPanel(){const e=validationIssues.filter(v=>v.severity==='error').length,w=validationIssues.filter(v=>v.severity==='warning').length;return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full flex flex-col"><div className="flex items-center justify-between mb-3"><h2 className="text-sm font-semibold text-gray-900">XBRL Validation</h2><button className="bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium px-3 py-1.5 rounded-lg transition-colors">Run</button></div><div className="flex gap-2 mb-3">{[[e,'Errors','bg-red-50','text-red-600','text-red-500'],[w,'Warnings','bg-amber-50','text-amber-600','text-amber-500'],[580,'Valid','bg-emerald-50','text-emerald-600','text-emerald-500']].map(([v,l,bg,tc,ts],i)=><div key={i} className={`flex-1 ${bg} rounded-lg p-2 text-center`}><div className={`text-lg font-bold ${tc}`}>{v}</div><div className={`text-[10px] ${ts} font-medium`}>{l}</div></div>)}</div><div className="space-y-1.5 flex-1 overflow-y-auto max-h-48">{validationIssues.map((issue,i)=><div key={i} className={`flex items-start gap-2 p-2 rounded-lg ${issue.severity==='error'?'bg-red-50':'bg-amber-50'}`}><span className={`mt-0.5 shrink-0 ${issue.severity==='error'?'text-red-500':'text-amber-500'}`}><Icons.Warning /></span><div className="min-w-0"><div className="flex items-center gap-1.5"><span className={`text-[9px] font-mono font-bold ${issue.severity==='error'?'text-red-600':'text-amber-600'}`}>{issue.rule}</span><span className="text-[9px] text-gray-400">{issue.section}</span></div><p className="text-[11px] text-gray-700 mt-px leading-tight">{issue.message}</p></div></div>)}</div></div>}
+    function DisclosureSectionsTable(){return<div className="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover"><div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between"><h2 className="text-sm font-semibold text-gray-900">Disclosure Sections</h2><button className="text-[11px] font-medium text-primary-600 hover:text-primary-700 flex items-center gap-0.5">View all <Icons.ArrowRight /></button></div><div className="divide-y divide-gray-50">{disclosureSections.map(section=><div key={section.category}><div className="px-4 py-2 bg-gray-50"><h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{section.category}</h3></div>{section.items.map((item,i)=><div key={i} className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group"><div className="flex items-center gap-2.5 min-w-0">{item.status==='complete'?<div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>:<div className={`w-4 h-4 rounded-full border-2 shrink-0 ${item.status==='in-review'?'border-amber-400 bg-amber-50':item.status==='in-progress'?'border-primary-400 bg-primary-50':'border-gray-300'}`}></div>}<span className={`text-xs ${item.status==='complete'?'text-gray-500':'text-gray-800'} truncate`}>{item.name}</span></div><div className="flex items-center gap-2 shrink-0 ml-2">{item.errors>0&&<span className="hidden sm:flex items-center gap-0.5 text-red-500 text-[10px] font-medium"><Icons.Warning />{item.errors}</span>}<span className="hidden md:inline text-[10px] text-gray-400 font-medium">{item.tags} tags</span><span className={`px-2 py-px rounded-full text-[10px] font-medium ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span><span className="text-gray-300 group-hover:text-gray-500 transition-colors"><Icons.ArrowRight /></span></div></div>)}</div>)}</div></div>}
+    function RecentActivity(){const a=[{action:'Completed',detail:'Entity Information tagging',user:'Jane Doe',time:'2h ago',color:'bg-emerald-500'},{action:'Submitted for review',detail:'Consolidated Balance Sheets',user:'Mike Chen',time:'5h ago',color:'bg-amber-500'},{action:'Started tagging',detail:'Revenue disaggregation',user:'Jane Doe',time:'Yesterday',color:'bg-primary-500'},{action:'Updated',detail:'US GAAP 2026 taxonomy loaded',user:'System',time:'Yesterday',color:'bg-gray-400'},{action:'Submitted for review',detail:'Statements of Operations',user:'Sarah Kim',time:'2 days ago',color:'bg-amber-500'}];return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full"><h2 className="text-sm font-semibold text-gray-900 mb-3">Recent Activity</h2><div className="space-y-2.5">{a.map((x,i)=><div key={i} className="flex items-start gap-2.5"><div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${x.color}`}></div><div className="min-w-0"><p className="text-xs text-gray-700 leading-tight"><span className="font-medium">{x.action}</span> {x.detail}</p><p className="text-[10px] text-gray-400 mt-px">{x.user} &middot; {x.time}</p></div></div>)}</div></div>}
+    function DashboardPage(){return<div className="space-y-4"><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-2"><DeadlineCard /></div><div><OverallProgress /></div></div><div className="bg-white rounded-xl border border-gray-200 px-4 py-2.5 card-hover"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500"><span><span className="font-medium text-gray-700">CIK:</span> {COMPANY.cik}</span><span><span className="font-medium text-gray-700">SIC:</span> {COMPANY.sic}</span><span><span className="font-medium text-gray-700">Filer:</span> {COMPANY.filerCategory}</span><span><span className="font-medium text-gray-700">FY End:</span> {COMPANY.fiscalYearEnd}</span><span className="ml-auto text-[10px] text-gray-400">SEC EDGAR</span></div></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"><PriorQuarterCard /><QuickActions /><div className="md:col-span-2 xl:col-span-1"><ValidationPanel /></div></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-2"><DisclosureSectionsTable /></div><div><RecentActivity /></div></div></div>}
+
+    // ══════════════════════════════════════════
+    // 10-Q FILINGS PAGE (unchanged)
+    // ══════════════════════════════════════════
+    function FilingsPage(){const[sf,setSf]=useState(0);const f=tenQFilings[sf];const ic=f.status==='in-progress';return<div className="space-y-4"><div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{tenQFilings.map((x,i)=><button key={i} onClick={()=>setSf(i)} className={`text-left p-3 rounded-xl border transition-all ${sf===i?'border-primary-400 bg-primary-50 ring-1 ring-primary-200':'border-gray-200 bg-white hover:border-gray-300 card-hover'}`}><div className="flex items-center justify-between mb-1"><span className="text-xs font-semibold text-gray-800">{x.period}</span><span className={`px-1.5 py-px rounded-full text-[9px] font-medium ${x.status==='filed'?'bg-emerald-100 text-emerald-700':'bg-primary-100 text-primary-700'}`}>{x.status==='filed'?'Filed':'In Progress'}</span></div><div className="text-[10px] text-gray-400">Period: {x.periodEnd}</div><div className="text-[10px] text-gray-400">Deadline: {x.deadline}</div><div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${x.status==='filed'?'bg-emerald-500':'bg-primary-500'}`} style={{width:`${x.pct}%`}}></div></div></button>)}</div>{ic&&<div className="bg-white rounded-xl border border-gray-200 p-4"><h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Workflow</h2><div className="flex items-center gap-1 overflow-x-auto pb-1">{filingWorkflowStages.map((s,i)=><React.Fragment key={i}><div className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium ${s.status==='active'?'bg-primary-600 text-white':'bg-gray-100 text-gray-500'}`}>{s.label}</div>{i<filingWorkflowStages.length-1&&<div className="shrink-0 w-4 h-px bg-gray-300"></div>}</React.Fragment>)}</div></div>}<div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="bg-white rounded-xl border border-gray-200 p-4 card-hover"><h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Details</h2><div className="space-y-2">{[['Form Type','10-Q'],['Registrant',COMPANY.name],['CIK',COMPANY.cik],['Period End',f.periodEnd],['Deadline',f.deadline],['Filer Category',COMPANY.filerCategory],['Fiscal Year End',COMPANY.fiscalYearEnd],['Accession #',f.accession]].map(([k,v],i)=><div key={i} className="flex justify-between text-[11px]"><span className="text-gray-500">{k}</span><span className="font-medium text-gray-800 text-right">{v}</span></div>)}</div>{ic&&<div className="mt-3 pt-3 border-t border-gray-100 flex gap-2"><button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Eye /> Preview</button><button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Download /> Export</button></div>}</div><div className="lg:col-span-2 space-y-3">{tenQParts.map((part,pi)=><div key={pi} className="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover"><div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100"><h3 className="text-xs font-semibold text-gray-700">{part.part}</h3></div><div className="divide-y divide-gray-50">{part.items.map((item,ii)=><div key={ii} className="px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer group"><div className="flex items-start justify-between gap-3"><div className="flex items-start gap-2.5 min-w-0">{ic?(item.status==='complete'?<div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>:<div className={`w-4 h-4 mt-0.5 rounded-full border-2 shrink-0 ${item.status==='in-progress'?'border-primary-400 bg-primary-50':'border-gray-300'}`}></div>):<div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>}<div className="min-w-0"><div className="flex items-center gap-2"><span className="text-[10px] font-mono font-semibold text-primary-600">{item.item}</span><span className="text-xs font-medium text-gray-800">{item.name}</span></div><p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{item.desc}</p>{ic&&<div className="flex items-center gap-3 mt-1.5"><span className="text-[10px] text-gray-400">Assignee: <span className="font-medium text-gray-600">{item.assignee}</span></span><span className="text-[10px] text-gray-400">Due: <span className="font-medium text-gray-600">{item.due}</span></span></div>}</div></div><div className="flex items-center gap-2 shrink-0 mt-0.5">{ic&&<span className={`px-2 py-px rounded-full text-[10px] font-medium ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span>}<span className="text-gray-300 group-hover:text-gray-500"><Icons.ArrowRight /></span></div></div></div>)}</div></div>)}</div></div></div>}
+
+    // ══════════════════════════════════════════
+    // XBRL TAGGING PAGE (fully interactive)
+    // ══════════════════════════════════════════
+    function XBRLTaggingPage() {
+      // State
+      const [mode, setMode] = useState('browse'); // browse | tagging | editing
+      const [selectedElement, setSelectedElement] = useState(null); // taxonomy element id
+      const [selectedTagId, setSelectedTagId] = useState(null);
+      const [tags, setTags] = useState(initialTags);
+      const [expandedNodes, setExpandedNodes] = useState({ 'us-gaap-bs': true });
+      const [searchTerm, setSearchTerm] = useState('');
+      const [activeDocSection, setActiveDocSection] = useState('balance-sheet');
+      const [tagForm, setTagForm] = useState({ period: '2026-03-31', unit: 'USD', decimals: '-6' });
+      const [toast, setToast] = useState(null);
+      const [hoveredElement, setHoveredElement] = useState(null);
+
+      const selectedTag = selectedTagId !== null ? tags.find(t => t.id === selectedTagId) : null;
+      const selectedElemData = selectedElement ? taxonomyElements[selectedElement] : null;
+      const tagForElement = selectedElement ? tags.find(t => t.concept === selectedElement) : null;
+
+      // Show a toast notification
+      const showToast = (msg, type='success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+      };
+
+      // Taxonomy element click
+      const handleElementClick = (elemId) => {
+        setSelectedElement(elemId);
+        setMode('browse');
+        const existingTag = tags.find(t => t.concept === elemId);
+        if (existingTag) {
+          setSelectedTagId(existingTag.id);
+        } else {
+          setSelectedTagId(null);
+        }
+        // Expand parent node
+        const parent = findParentNode(elemId);
+        if (parent) setExpandedNodes(prev => ({ ...prev, [parent.id]: true }));
+      };
+
+      // Enter tagging mode
+      const handleApplyTag = () => {
+        setMode('tagging');
+        setTagForm({ period: '2026-03-31', unit: 'USD', decimals: '-6' });
+      };
+
+      // Click a value in the document
+      const handleDocValueClick = (row) => {
+        if (mode === 'tagging' && selectedElement) {
+          // Create new tag
+          const newTag = {
+            id: Date.now(),
+            concept: selectedElement,
+            rowId: row.id,
+            value: row.val1.replace(/[$,]/g, '') + '000000',
+            displayValue: row.val1,
+            period: tagForm.period,
+            unit: tagForm.unit,
+            decimals: tagForm.decimals,
+            status: 'tagged',
+          };
+          setTags(prev => [...prev, newTag]);
+          setSelectedTagId(newTag.id);
+          setMode('browse');
+          showToast(`Tagged "${row.label}" as ${selectedElement.split(':')[1]}`);
+        } else {
+          // Select existing tag for this row
+          const tag = tags.find(t => t.rowId === row.id);
+          if (tag) {
+            setSelectedTagId(tag.id);
+            setSelectedElement(tag.concept);
+            setMode('browse');
+            const parent = findParentNode(tag.concept);
+            if (parent) setExpandedNodes(prev => ({ ...prev, [parent.id]: true }));
+          }
+        }
+      };
+
+      // Tag list click
+      const handleTagListClick = (tagId) => {
+        const tag = tags.find(t => t.id === tagId);
+        setSelectedTagId(tagId);
+        setSelectedElement(tag.concept);
+        setMode('browse');
+        const parent = findParentNode(tag.concept);
+        if (parent) setExpandedNodes(prev => ({ ...prev, [parent.id]: true }));
+      };
+
+      // Edit tag
+      const handleEditTag = () => {
+        if (!selectedTag) return;
+        setMode('editing');
+        setTagForm({ period: selectedTag.period, unit: selectedTag.unit, decimals: selectedTag.decimals });
+      };
+
+      // Save edit
+      const handleSaveEdit = () => {
+        setTags(prev => prev.map(t => t.id === selectedTagId ? { ...t, period: tagForm.period, unit: tagForm.unit, decimals: tagForm.decimals, status: 'tagged' } : t));
+        setMode('browse');
+        showToast('Tag updated successfully');
+      };
+
+      // Remove tag
+      const handleRemoveTag = () => {
+        const concept = selectedTag?.concept;
+        setTags(prev => prev.filter(t => t.id !== selectedTagId));
+        setSelectedTagId(null);
+        setMode('browse');
+        showToast(`Removed tag ${concept?.split(':')[1] || ''}`, 'info');
+      };
+
+      // Cancel
+      const handleCancel = () => {
+        setMode('browse');
+      };
+
+      // ESC key handler
+      useEffect(() => {
+        const handler = (e) => { if (e.key === 'Escape') setMode('browse'); };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+      }, []);
+
+      const toggleNode = (id) => setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
+
+      // Check if a row is tagged
+      const getTagForRow = (rowId) => tags.find(t => t.rowId === rowId);
+      const isRowTagged = (rowId) => !!getTagForRow(rowId);
+
+      return (
+        <div className="flex flex-col lg:flex-row gap-3 h-[calc(100vh-7.5rem)] relative">
+          {/* Toast */}
+          {toast && (
+            <div className={`toast-enter fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-xs font-medium ${toast.type==='success'?'bg-emerald-600 text-white':'bg-gray-700 text-white'}`}>
+              {toast.msg}
+            </div>
+          )}
+
+          {/* LEFT: Taxonomy Browser */}
+          <div className="w-full lg:w-64 xl:w-72 shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden lg:h-full">
+            <div className="px-3 py-2.5 border-b border-gray-100">
+              <h3 className="text-xs font-semibold text-gray-800 mb-2">US GAAP Taxonomy</h3>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"><Icons.Search /></span>
+                <input type="text" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Search elements..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400" />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {taxonomyTree.map(node => {
+                const isExp = expandedNodes[node.id];
+                const children = node.children.map(cId => ({ id: cId, ...taxonomyElements[cId] }));
+                const filtered = searchTerm ? children.filter(c => c.label?.toLowerCase().includes(searchTerm.toLowerCase()) || c.id.toLowerCase().includes(searchTerm.toLowerCase())) : children;
+                if (searchTerm && filtered.length === 0) return null;
+                return (
+                  <div key={node.id} className="mb-1">
+                    <button onClick={() => toggleNode(node.id)}
+                      className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-left hover:bg-gray-50 transition-colors">
+                      <svg className={`w-3 h-3 text-gray-400 transition-transform ${isExp||searchTerm?'rotate-90':''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      <Icons.Folder />
+                      <span className="text-[11px] font-medium text-gray-700 truncate">{node.label}</span>
+                      <span className="text-[9px] text-gray-400 ml-auto shrink-0">{node.children.length}</span>
+                    </button>
+                    {(isExp || searchTerm) && (
+                      <div className="ml-5 mt-0.5 space-y-px">
+                        {filtered.map(child => {
+                          const isTagged = tags.some(t => t.concept === child.id);
+                          const isSelected = selectedElement === child.id;
+                          return (
+                            <button key={child.id} onClick={() => handleElementClick(child.id)}
+                              onMouseEnter={() => setHoveredElement(child.id)}
+                              onMouseLeave={() => setHoveredElement(null)}
+                              className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-left text-[11px] transition-colors ${
+                                isSelected ? 'bg-primary-100 text-primary-800 ring-1 ring-primary-300' :
+                                isTagged ? 'bg-primary-50 text-primary-700 hover:bg-primary-100' :
+                                'text-gray-600 hover:bg-gray-50'
+                              }`}>
+                              <Icons.Tag />
+                              <span className="truncate">{child.label}</span>
+                              {isTagged && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0"></span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
+              <div className="flex items-center justify-between text-[10px] text-gray-500">
+                <span>us-gaap-2026</span>
+                <span>{tags.length} tagged</span>
+              </div>
+            </div>
+          </div>
+
+          {/* CENTER: Document Viewer */}
+          <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden min-w-0">
+            {/* Tagging mode banner */}
+            {mode === 'tagging' && selectedElemData && (
+              <div className="px-4 py-2 bg-primary-600 text-white flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icons.Crosshair />
+                  <span className="text-[11px] font-medium truncate">
+                    Select a value to tag as <span className="font-bold">{selectedElement.split(':')[1]}</span>
+                  </span>
+                </div>
+                <button onClick={handleCancel} className="shrink-0 text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg transition-colors">
+                  Cancel (Esc)
+                </button>
+              </div>
+            )}
+
+            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 overflow-x-auto">
+                {[['balance-sheet','Balance Sheet'],['income','Income Statement'],['cash-flows','Cash Flows']].map(([id,label])=>(
+                  <button key={id} onClick={()=>setActiveDocSection(id)}
+                    className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${activeDocSection===id?'bg-primary-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-500 transition-colors" title="Download"><Icons.Download /></button>
+              </div>
+            </div>
+
+            <div className={`flex-1 overflow-y-auto p-4 lg:p-5 ${mode==='tagging'?'cursor-crosshair':''}`}>
+              <div className="max-w-2xl mx-auto">
+                <h2 className="text-center text-sm font-bold text-gray-900 mb-0.5">AMAZON.COM, INC.</h2>
+                <h3 className="text-center text-xs font-semibold text-gray-700 mb-0.5">CONDENSED CONSOLIDATED BALANCE SHEETS</h3>
+                <p className="text-center text-[10px] text-gray-500 mb-4">(in millions, except per share data) (unaudited)</p>
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-800">
+                      <th className="text-left py-1.5 font-semibold text-gray-700"></th>
+                      <th className="text-right py-1.5 font-semibold text-gray-700 w-28"><span className="xbrl-tag-date px-1">March 31, 2026</span></th>
+                      <th className="text-right py-1.5 font-semibold text-gray-700 w-28">December 31, 2025</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colSpan="3" className="pt-2 pb-1 font-bold text-gray-800">ASSETS</td></tr>
+                    <tr><td colSpan="3" className="py-0.5 font-semibold text-gray-700 text-[11px]">Current assets:</td></tr>
+                    {docRows.map((row) => {
+                      const tag = getTagForRow(row.id);
+                      const isTagged = !!tag;
+                      const isSelectedInDoc = selectedTag?.rowId === row.id;
+                      const isHovered = hoveredElement === row.concept;
+                      const canTag = mode === 'tagging' && !isTagged;
+
+                      return (
+                        <React.Fragment key={row.id}>
+                          {row.sectionHeader && (
+                            <React.Fragment>
+                              <tr><td className="py-2" colSpan="3"></td></tr>
+                              <tr><td colSpan="3" className="pt-1 pb-1 font-bold text-gray-800">{row.sectionHeader}</td></tr>
+                              <tr><td colSpan="3" className="py-0.5 font-semibold text-gray-700 text-[11px]">Current liabilities:</td></tr>
+                            </React.Fragment>
+                          )}
+                          {row.spaceBefore && !row.sectionHeader && <tr><td className="py-1.5" colSpan="3"></td></tr>}
+                          <tr className={`${isHovered?'xbrl-row-hovered':''} ${canTag?'hover:bg-primary-50':'hover:bg-gray-50'} transition-colors cursor-pointer`}
+                            style={row.borderTop==='double'?{borderTop:'3px double #1f2937'}:row.borderTop?{borderTop:'1px solid #d1d5db'}:{}}
+                            onClick={() => { if (canTag || isTagged) handleDocValueClick(row); }}>
+                            <td className={`py-1 ${row.indent===2?'pl-6':row.indent===1?'pl-4':''} ${row.bold?'font-bold text-gray-800':'text-gray-600'}`}>{row.label}</td>
+                            <td className="py-1 text-right font-mono">
+                              {isTagged ? (
+                                <span className={`xbrl-tag-monetary px-1 ${isSelectedInDoc?'xbrl-tag-selected':''} ${isHovered?'xbrl-tag-hovered':''}`}>{row.val1}</span>
+                              ) : canTag ? (
+                                <span className="xbrl-taggable">{row.val1}</span>
+                              ) : (
+                                <span className={row.bold?'font-bold':''}>{row.val1}</span>
+                              )}
+                            </td>
+                            <td className="py-1 text-right font-mono text-gray-500">{row.val2}</td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-[9px] text-gray-400 mt-4 text-center">See accompanying notes to condensed consolidated financial statements.</p>
+              </div>
+            </div>
+
+            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center gap-3 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block rounded"></span> Monetary</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-emerald-500 inline-block rounded"></span> Text</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-500 inline-block rounded"></span> Date</span>
+              {mode==='tagging' && <span className="flex items-center gap-1"><span className="w-3 h-px border border-dashed border-blue-500 inline-block rounded" style={{width:12}}></span> Taggable</span>}
+              <span className="ml-auto text-gray-500">{tags.length} of {docRows.length} elements tagged</span>
+            </div>
+          </div>
+
+          {/* RIGHT: Context Panel */}
+          <div className="w-full lg:w-64 xl:w-72 shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden lg:h-full">
+            <div className="px-3 py-2.5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-gray-800">
+                {mode === 'editing' ? 'Edit Tag' : mode === 'tagging' ? 'Apply Tag' : selectedTag ? 'Tag Properties' : selectedElemData ? 'Element Details' : 'Inspector'}
+              </h3>
+              {(mode === 'tagging' || mode === 'editing') && (
+                <button onClick={handleCancel} className="text-[10px] text-gray-500 hover:text-gray-700">Cancel</button>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {/* ── Editing mode: form ── */}
+              {mode === 'editing' && selectedTag && (
+                <div className="p-3 space-y-3">
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Concept</div>
+                    <div className="text-[11px] font-mono font-medium text-primary-700 bg-primary-50 px-2 py-1 rounded break-all">{selectedTag.concept}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Value</div>
+                    <div className="text-[11px] font-medium text-gray-800">{selectedTag.displayValue}</div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-medium mb-0.5 block">Period End Date</label>
+                    <input type="date" value={tagForm.period} onChange={e=>setTagForm(f=>({...f,period:e.target.value}))}
+                      className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-medium mb-0.5 block">Unit</label>
+                    <select value={tagForm.unit} onChange={e=>setTagForm(f=>({...f,unit:e.target.value}))}
+                      className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400">
+                      <option value="USD">USD (US Dollars)</option>
+                      <option value="shares">Shares</option>
+                      <option value="pure">Pure (ratio)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-medium mb-0.5 block">Decimals</label>
+                    <select value={tagForm.decimals} onChange={e=>setTagForm(f=>({...f,decimals:e.target.value}))}
+                      className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400">
+                      <option value="-6">Millions (-6)</option>
+                      <option value="-3">Thousands (-3)</option>
+                      <option value="0">Exact (0)</option>
+                      <option value="2">Cents (2)</option>
+                      <option value="INF">Infinite precision</option>
+                    </select>
+                  </div>
+                  <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                    <button onClick={handleSaveEdit} className="w-full bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors">Save Changes</button>
+                    <button onClick={handleCancel} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors">Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Tagging mode: element info + instructions ── */}
+              {mode === 'tagging' && selectedElemData && (
+                <div className="p-3 space-y-3">
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Applying Element</div>
+                    <div className="text-[11px] font-mono font-medium text-primary-700 bg-primary-50 px-2 py-1 rounded break-all">{selectedElement}</div>
+                  </div>
+                  <div className="bg-primary-50 rounded-lg p-2.5">
+                    <p className="text-[11px] text-primary-800 font-medium leading-relaxed">Click on any pulsing value in the document to apply this tag.</p>
+                    <p className="text-[10px] text-primary-600 mt-1">Press Esc to cancel.</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-medium mb-0.5 block">Period End Date</label>
+                    <input type="date" value={tagForm.period} onChange={e=>setTagForm(f=>({...f,period:e.target.value}))}
+                      className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-medium mb-0.5 block">Unit</label>
+                    <select value={tagForm.unit} onChange={e=>setTagForm(f=>({...f,unit:e.target.value}))}
+                      className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400">
+                      <option value="USD">USD (US Dollars)</option><option value="shares">Shares</option><option value="pure">Pure (ratio)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 font-medium mb-0.5 block">Decimals</label>
+                    <select value={tagForm.decimals} onChange={e=>setTagForm(f=>({...f,decimals:e.target.value}))}
+                      className="w-full px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] focus:outline-none focus:ring-1 focus:ring-primary-400">
+                      <option value="-6">Millions (-6)</option><option value="-3">Thousands (-3)</option><option value="0">Exact (0)</option><option value="INF">Infinite precision</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Browse mode: viewing a tag ── */}
+              {mode === 'browse' && selectedTag && (
+                <div className="p-3 space-y-2.5">
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Concept</div>
+                    <div className="text-[11px] font-mono font-medium text-primary-700 bg-primary-50 px-2 py-1 rounded break-all">{selectedTag.concept}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Standard Label</div>
+                    <div className="text-[11px] font-medium text-gray-800">{taxonomyElements[selectedTag.concept]?.label || selectedTag.concept.split(':')[1]}</div>
+                  </div>
+                  {[['Value', selectedTag.displayValue],['Period', selectedTag.period],['Unit', selectedTag.unit],['Decimals', selectedTag.decimals],['Context ID', `c-${selectedTag.id}-${selectedTag.period}`]].map(([k,v],i)=>(
+                    <div key={i}><div className="text-[10px] text-gray-400 font-medium mb-0.5">{k}</div><div className="text-[11px] font-medium text-gray-800">{v}</div></div>
+                  ))}
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Status</div>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${selectedTag.status==='error'?'bg-red-100 text-red-700':selectedTag.status==='review'?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700'}`}>
+                      {selectedTag.status==='error'?'Validation Error':selectedTag.status==='review'?'Needs Review':'Valid'}
+                    </span>
+                  </div>
+                  {taxonomyElements[selectedTag.concept] && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="text-[10px] text-gray-400 font-medium mb-0.5">Documentation</div>
+                      <p className="text-[10px] text-gray-600 leading-relaxed">{taxonomyElements[selectedTag.concept].doc}</p>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-gray-100 space-y-1.5">
+                    <button onClick={handleEditTag} className="w-full bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors">Edit Tag</button>
+                    <button onClick={handleRemoveTag} className="w-full bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-medium py-1.5 rounded-lg transition-colors">Remove Tag</button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Browse mode: element selected (no tag) ── */}
+              {mode === 'browse' && !selectedTag && selectedElemData && (
+                <div className="p-3 space-y-2.5">
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Element Name</div>
+                    <div className="text-[11px] font-mono font-medium text-primary-700 bg-primary-50 px-2 py-1 rounded break-all">{selectedElement}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Standard Label</div>
+                    <div className="text-[11px] font-medium text-gray-800">{selectedElemData.label}</div>
+                  </div>
+                  {[['Data Type', selectedElemData.dataType],['Period Type', selectedElemData.periodType],['Balance', selectedElemData.balance || '\u2014']].map(([k,v],i)=>(
+                    <div key={i}><div className="text-[10px] text-gray-400 font-medium mb-0.5">{k}</div><div className="text-[11px] font-medium text-gray-800">{v}</div></div>
+                  ))}
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="text-[10px] text-gray-400 font-medium mb-0.5">Documentation</div>
+                    <p className="text-[10px] text-gray-600 leading-relaxed">{selectedElemData.doc}</p>
+                  </div>
+                  <div className="pt-2 border-t border-gray-100">
+                    {tagForElement ? (
+                      <button onClick={() => { setSelectedTagId(tagForElement.id); }}
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                        <Icons.Link /> Jump to Tag
+                      </button>
+                    ) : (
+                      <button onClick={handleApplyTag}
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                        <Icons.Crosshair /> Apply to Document
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Nothing selected ── */}
+              {mode === 'browse' && !selectedTag && !selectedElemData && (
+                <div className="flex-1 flex items-center justify-center p-6">
+                  <div className="text-center">
+                    <div className="text-gray-300 mb-2"><svg className="w-8 h-8 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg></div>
+                    <p className="text-[11px] text-gray-500 font-medium mb-1">No element selected</p>
+                    <p className="text-[10px] text-gray-400 leading-relaxed">Click a taxonomy element to view its<br/>details, or click a tagged value in<br/>the document to inspect it.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tag list */}
+            <div className="border-t border-gray-100">
+              <div className="px-3 py-2 bg-gray-50 flex items-center justify-between">
+                <h4 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Tagged Elements</h4>
+                <span className="text-[9px] text-gray-400">{tags.length}</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto divide-y divide-gray-50">
+                {tags.map(tag => (
+                  <button key={tag.id} onClick={() => handleTagListClick(tag.id)}
+                    className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-gray-50 transition-colors ${selectedTagId===tag.id?'bg-primary-50':''}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-gray-700 truncate">{tag.concept.split(':')[1]}</span>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ml-1 ${tag.status==='error'?'bg-red-500':tag.status==='review'?'bg-amber-500':'bg-emerald-500'}`}></span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">{tag.displayValue}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    // 10-K FILINGS PAGE
+    // ══════════════════════════════════════════
+    function TenKFilingsPage(){
+      const [sf, setSf] = useState(0);
+      const f = tenKFilings[sf];
+      const ic = f.status === 'in-progress';
+      const fmt = (v) => v === 0 ? '\u2014' : '$' + v.toLocaleString();
+      const [hoveredTag, setHoveredTag] = useState(null);
+
+      const bsRows = [
+        { label: 'ASSETS', section: true },
+        { label: 'Cash and cash equivalents', key: 'cash', indent: 1, tag: 'us-gaap:CashAndCashEquivalentsAtCarryingValue' },
+        { label: 'Short-term investments', key: 'sti', indent: 1, tag: 'us-gaap:ShortTermInvestments' },
+        { label: 'Accounts receivable, net', key: 'ar', indent: 1, tag: 'us-gaap:AccountsReceivableNetCurrent' },
+        { label: 'Inventories', key: 'inv', indent: 1, tag: 'us-gaap:InventoryNet' },
+        { label: 'Other current assets', key: 'oca', indent: 1, tag: 'us-gaap:OtherAssetsCurrent' },
+        { label: 'Total current assets', key: 'tca', indent: 0, bold: true, bt: true, tag: 'us-gaap:AssetsCurrent' },
+        { label: 'Property and equipment, net', key: 'ppe', indent: 1, sb: true, tag: 'us-gaap:PropertyPlantAndEquipmentNet' },
+        { label: 'Operating lease right-of-use assets', key: 'rou', indent: 1, tag: 'us-gaap:OperatingLeaseRightOfUseAsset' },
+        { label: 'Goodwill', key: 'gw', indent: 1, tag: 'us-gaap:Goodwill' },
+        { label: 'Total assets', key: 'ta', indent: 0, bold: true, btd: true, tag: 'us-gaap:Assets' },
+        { label: 'LIABILITIES AND STOCKHOLDERS\u2019 EQUITY', section: true },
+        { label: 'Accounts payable', key: 'ap', indent: 1, tag: 'us-gaap:AccountsPayableCurrent' },
+        { label: 'Accrued expenses and other', key: 'ae', indent: 1, tag: 'us-gaap:AccruedLiabilitiesCurrent' },
+        { label: 'Unearned revenue', key: 'ur', indent: 1, tag: 'us-gaap:ContractWithCustomerLiabilityCurrent' },
+        { label: 'Total current liabilities', key: 'tcl', indent: 0, bold: true, bt: true, tag: 'us-gaap:LiabilitiesCurrent' },
+        { label: 'Long-term debt', key: 'ltd', indent: 1, sb: true, tag: 'us-gaap:LongTermDebtNoncurrent' },
+        { label: 'Operating lease liabilities', key: 'oll', indent: 1, tag: 'us-gaap:OperatingLeaseLiabilityNoncurrent' },
+        { label: 'Other long-term liabilities', key: 'olt', indent: 1, tag: 'us-gaap:OtherLiabilitiesNoncurrent' },
+        { label: 'Total liabilities', key: 'tl', indent: 0, bold: true, bt: true, tag: 'us-gaap:Liabilities' },
+        { label: 'Total stockholders\u2019 equity', key: 'se', indent: 0, bold: true, sb: true, tag: 'us-gaap:StockholdersEquity' },
+        { label: 'Total liabilities and stockholders\u2019 equity', key: 'tle', indent: 0, bold: true, btd: true, tag: 'us-gaap:LiabilitiesAndStockholdersEquity' },
+      ];
+
+      // Count checklist progress for in-progress filing
+      const allItems = tenKParts.flatMap(p => p.items);
+      const completedItems = allItems.filter(i => i.status === 'complete').length;
+      const inProgressItems = allItems.filter(i => i.status === 'in-progress').length;
+      const notStartedItems = allItems.filter(i => i.status === 'not-started').length;
+
+      return (
+        <div className="space-y-4">
+          {/* Filing selector cards */}
+          <div className="grid grid-cols-3 gap-3">
+            {tenKFilings.map((x, i) => (
+              <button key={i} onClick={() => setSf(i)} className={`text-left p-3 rounded-xl border transition-all ${sf === i ? 'border-primary-400 bg-primary-50 ring-1 ring-primary-200' : 'border-gray-200 bg-white hover:border-gray-300 card-hover'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold text-gray-800">{x.period}</span>
+                  <span className={`px-1.5 py-px rounded-full text-[9px] font-medium ${x.status==='filed'?'bg-emerald-100 text-emerald-700':'bg-primary-100 text-primary-700'}`}>{x.status==='filed'?'Filed':'In Progress'}</span>
+                </div>
+                <div className="text-[10px] text-gray-400">Period: {x.periodEnd}</div>
+                <div className="text-[10px] text-gray-400">{x.status==='filed'?'Filed: '+x.filingDate:'Deadline: '+x.deadline}</div>
+                <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${x.status==='filed'?'bg-emerald-500':'bg-primary-500'}`} style={{width:`${x.pct}%`}}></div></div>
+              </button>
+            ))}
+          </div>
+
+          {/* Workflow stages (in-progress only) */}
+          {ic && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Workflow</h2>
+              <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                {tenKWorkflowStages.map((s, i) => (
+                  <React.Fragment key={i}>
+                    <div className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium ${s.status==='active'?'bg-primary-600 text-white':s.status==='complete'?'bg-emerald-100 text-emerald-700':'bg-gray-100 text-gray-500'}`}>{s.label}</div>
+                    {i < tenKWorkflowStages.length - 1 && <div className="shrink-0 w-4 h-px bg-gray-300"></div>}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Financial highlights (filed filings only) */}
+          {!ic && f.revenue && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[{l:'Net Revenue',v:f.revenue},{l:'Net Income',v:f.netIncome},{l:'Operating Income',v:f.operatingIncome},{l:'Earnings Per Share',v:f.eps}].map((m,i)=>(
+                  <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 card-hover">
+                    <div className="text-[10px] text-gray-400 font-medium">{m.l}</div>
+                    <div className="text-lg font-bold text-gray-900">{m.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Revenue by Segment</h2>
+                <div className="grid grid-cols-3 gap-3">
+                  {[{l:'North America',v:f.segments.na,bg:'bg-primary-50',tc:'text-primary-700'},{l:'International',v:f.segments.intl,bg:'bg-emerald-50',tc:'text-emerald-700'},{l:'AWS',v:f.segments.aws,bg:'bg-amber-50',tc:'text-amber-700'}].map((s,i)=>(
+                    <div key={i} className={`${s.bg} rounded-lg p-3 text-center`}>
+                      <div className="text-[10px] text-gray-500 font-medium">{s.l}</div>
+                      <div className={`text-base font-bold ${s.tc}`}>{s.v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Deadline countdown (in-progress only) */}
+          {ic && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Annual Report Timeline</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">10-K for fiscal year ending {f.periodEnd}</p>
+                </div>
+                <div className="flex items-center gap-1.5 text-primary-700 shrink-0">
+                  <Icons.Calendar />
+                  <div>
+                    <span className="text-xs font-semibold">{f.deadline}</span>
+                    <p className="text-[10px] text-gray-400">SEC Deadline (60 days)</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+                <div className="bg-primary-600 text-white rounded-xl px-4 py-2.5 text-center shrink-0">
+                  <div className="text-xl font-bold">290</div>
+                  <div className="text-[10px] font-medium text-primary-200">days left</div>
+                </div>
+                <div className="flex-1 grid grid-cols-3 gap-2 w-full">
+                  {[{v:'290',l:'to FY close'},{v:'335',l:'to audit done'},{v:'350',l:'to filing'}].map((x,i)=>(
+                    <div key={i} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+                      <div className="text-base font-bold text-gray-800">{x.v}</div>
+                      <div className="text-[9px] text-gray-400 font-medium">{x.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary-500 rounded-full progress-bar" style={{width:`${f.pct}%`}}></div>
+                </div>
+                <div className="flex justify-between mt-1.5">
+                  {['FY Ends|Dec 31','Audit Done|Jan 20','XBRL Tag|Feb 5','Final Review|Feb 18','SEC Filing|Mar 1'].map((m,i)=>{const[l,dd]=m.split('|');return<div key={i} className="text-center"><div className="text-[9px] font-semibold text-gray-600">{l}</div><div className="text-[9px] text-gray-400">{dd}</div></div>})}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Completion summary (in-progress only) */}
+          {ic && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Checklist Progress</h2>
+              <div className="flex items-center gap-4">
+                <div className="relative w-20 h-20 shrink-0">
+                  <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" strokeWidth="8"/>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="#3B82F6" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${Math.round((completedItems/allItems.length)*264)} ${264-Math.round((completedItems/allItems.length)*264)}`} className="transition-all duration-1000"/>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-lg font-bold text-gray-900">{completedItems}/{allItems.length}</span>
+                    <span className="text-[9px] text-gray-400 font-medium">items</span>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  {[['Complete','bg-emerald-500',completedItems],['In Progress','bg-primary-500',inProgressItems],['Not Started','bg-gray-300',notStartedItems]].map(([l,c,v],i)=>(
+                    <div key={i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${c}`}></div><span className="text-[11px] text-gray-600">{l}</span></div>
+                      <span className="text-[11px] font-semibold text-gray-800">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Filing details */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Details</h2>
+              <div className="space-y-2">
+                {[['Form Type','10-K'],['Registrant',COMPANY.name],['CIK',COMPANY.cik],['Period End',f.periodEnd],['Deadline',f.deadline],['Filer Category',COMPANY.filerCategory],['Fiscal Year End',COMPANY.fiscalYearEnd],['Accession #',f.accession]].concat(f.filingDate?[['Filing Date',f.filingDate]]:[]).map(([k,v],i)=>(
+                  <div key={i} className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">{k}</span>
+                    <span className="font-medium text-gray-800 text-right">{v}</span>
+                  </div>
+                ))}
+              </div>
+              {ic && (
+                <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                  <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Eye /> Preview</button>
+                  <button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Download /> Export</button>
+                </div>
+              )}
+              {!ic && (
+                <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                  <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Eye /> View on EDGAR</button>
+                  <button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Download /> Export</button>
+                </div>
+              )}
+            </div>
+
+            {/* Balance Sheet (filed) or Parts checklist panel (in-progress) */}
+            <div className="lg:col-span-2 space-y-3">
+              {!ic && f.bs && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover">
+                  <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-gray-700">Consolidated Balance Sheets</h3>
+                    <span className="text-[10px] text-gray-400">In millions</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left px-4 py-2 font-medium text-gray-500 w-1/2"></th>
+                          <th className="text-right px-4 py-2 font-medium text-gray-600 whitespace-nowrap">{f.periodEnd}</th>
+                          <th className="text-right px-4 py-2 font-medium text-gray-600 whitespace-nowrap">{f.priorLabel}</th>
+                          <th className="text-right px-4 py-2 font-medium text-gray-400 whitespace-nowrap hidden sm:table-cell">XBRL Tag</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bsRows.map((row, i) => {
+                          if (row.section) return (
+                            <tr key={i}><td colSpan={4} className="px-4 pt-3 pb-1 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{row.label}</td></tr>
+                          );
+                          const isHovered = hoveredTag === row.tag;
+                          return (
+                            <tr key={i}
+                              onMouseEnter={() => setHoveredTag(row.tag)}
+                              onMouseLeave={() => setHoveredTag(null)}
+                              className={`${row.sb ? 'border-t border-gray-50' : ''} ${row.btd ? 'border-t-2 border-gray-300' : row.bt ? 'border-t border-gray-200' : ''} ${isHovered ? 'bg-primary-50' : 'hover:bg-gray-50'} transition-colors`}>
+                              <td className={`px-4 py-1 ${row.bold ? 'font-semibold text-gray-800' : 'text-gray-600'}`} style={{paddingLeft:`${16 + (row.indent || 0) * 16}px`}}>{row.label}</td>
+                              <td className={`text-right px-4 py-1 ${row.bold ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>{fmt(f.bs[row.key])}</td>
+                              <td className={`text-right px-4 py-1 ${row.bold ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>{fmt(f.bsPrior[row.key])}</td>
+                              <td className="text-right px-4 py-1 hidden sm:table-cell">
+                                <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded ${isHovered ? 'bg-primary-100 text-primary-700' : 'text-gray-400'}`}>{row.tag.split(':')[1]}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="px-4 py-2 border-t border-gray-100">
+                    <p className="text-[9px] text-gray-400">Source: Amazon.com, Inc. Annual Report on Form 10-K filed with SEC EDGAR (Accession: {f.accession})</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Parts checklist - always shown */}
+              {tenKParts.map((part, pi) => (
+                <div key={pi} className="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover">
+                  <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                    <h3 className="text-xs font-semibold text-gray-700">{part.part}</h3>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {part.items.map((item, ii) => (
+                      <div key={ii} className="px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer group">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            {ic ? (
+                              item.status === 'complete' ?
+                                <div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>
+                              : <div className={`w-4 h-4 mt-0.5 rounded-full border-2 shrink-0 ${item.status==='in-progress'?'border-primary-400 bg-primary-50':'border-gray-300'}`}></div>
+                            ) : (
+                              <div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono font-semibold text-primary-600">{item.item}</span>
+                                <span className="text-xs font-medium text-gray-800">{item.name}</span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{item.desc}</p>
+                              {ic && (
+                                <div className="flex items-center gap-3 mt-1.5">
+                                  <span className="text-[10px] text-gray-400">Assignee: <span className="font-medium text-gray-600">{item.assignee}</span></span>
+                                  <span className="text-[10px] text-gray-400">Due: <span className="font-medium text-gray-600">{item.due}</span></span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                            {ic ? (
+                              <span className={`px-2 py-px rounded-full text-[10px] font-medium ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span>
+                            ) : (
+                              <span className="px-2 py-px rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">Complete</span>
+                            )}
+                            <span className="text-gray-300 group-hover:text-gray-500"><Icons.ArrowRight /></span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    function PlaceholderPage({title,desc}){return<div className="flex items-center justify-center h-64"><div className="text-center"><h2 className="text-lg font-semibold text-gray-800 mb-1">{title}</h2><p className="text-sm text-gray-500">{desc}</p></div></div>}
+
+    function App() {
+      const [activePage, setActivePage] = useState('dashboard');
+      const [mobileOpen, setMobileOpen] = useState(false);
+      const pageTitles = {
+        'dashboard': ['Disclosure Dashboard', `${COMPANY.name} \u00b7 Q1 2026 Quarterly Report (10-Q)`],
+        'filings-10q': ['10-Q Filings', `${COMPANY.name} \u00b7 Quarterly Report Management`],
+        'filings-10k': ['10-K Filings', `${COMPANY.name} \u00b7 Annual Report Management`],
+        'financial-statements': ['Financial Statements', 'Review and manage condensed consolidated statements'],
+        'notes': ['Notes to Financial Statements', 'Disclosure notes and XBRL tagging'],
+        'xbrl-tagging': ['XBRL Tagging', `${COMPANY.name} \u00b7 Tag financial data with US GAAP taxonomy`],
+        'validation': ['Validation', 'XBRL validation rules and error resolution'],
+        'settings': ['Settings', 'Application and filing configuration'],
+      };
+      const [title, subtitle] = pageTitles[activePage] || ['Page', ''];
+      const renderPage = () => { switch(activePage){ case 'dashboard':return <DashboardPage/>;case 'filings-10q':return <FilingsPage/>;case 'filings-10k':return <TenKFilingsPage/>;case 'xbrl-tagging':return <XBRLTaggingPage/>;default:return <PlaceholderPage title={title} desc="This section is under development."/>; }};
+      return (
+        <div className="flex min-h-screen bg-gray-50">
+          <Sidebar activePage={activePage} onNavigate={setActivePage} mobileOpen={mobileOpen} onMobileClose={()=>setMobileOpen(false)} />
+          <div className="flex-1 lg:ml-60 flex flex-col min-h-screen">
+            <Header title={title} subtitle={subtitle} onMenuClick={()=>setMobileOpen(true)} />
+            <main className={`flex-1 p-3 sm:p-4 lg:p-5 overflow-y-auto ${activePage==='xbrl-tagging'?'p-3 sm:p-3 lg:p-4':''}`}>{renderPage()}</main>
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
