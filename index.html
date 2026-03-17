@@ -82,6 +82,7 @@
       Plus: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
       Crosshair: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>,
       Link: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
+      Drive: () => <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>,
     };
 
     // ── Data ──
@@ -306,6 +307,120 @@
       { id: 8, concept: 'us-gaap:Assets', rowId: 'r11', value: '462675000000', displayValue: '$462,675', period: '2026-03-31', unit: 'USD', decimals: '-6', status: 'error' },
     ];
 
+    // ── Google Drive Source Files ──
+    const driveFiles = [
+      { id: 'gf1', name: 'Treasury_Domestic_Q1_2026.xlsx', folder: 'Cash & Treasury', modified: 'Mar 28, 2026', size: '245 KB', sheets: ['Domestic Cash','Money Market','Sweep Accounts'], status: 'synced' },
+      { id: 'gf2', name: 'Treasury_International_Q1_2026.xlsx', folder: 'Cash & Treasury', modified: 'Mar 27, 2026', size: '189 KB', sheets: ['International Cash','FX Adjustments'], status: 'synced' },
+      { id: 'gf3', name: 'Restricted_Cash_Schedule.xlsx', folder: 'Cash & Treasury', modified: 'Mar 25, 2026', size: '78 KB', sheets: ['Restricted Cash'], status: 'synced' },
+      { id: 'gf4', name: 'STI_Portfolio_Q1_2026.xlsx', folder: 'Investments', modified: 'Mar 29, 2026', size: '412 KB', sheets: ['Corporate Bonds','Treasury Bills','Commercial Paper'], status: 'synced' },
+      { id: 'gf5', name: 'AR_Aging_Report_Q1_2026.xlsx', folder: 'Receivables', modified: 'Mar 30, 2026', size: '1.2 MB', sheets: ['Aging Summary','Allowance Calc','Customer Detail'], status: 'synced' },
+      { id: 'gf6', name: 'Inventory_Valuation_Q1_2026.xlsx', folder: 'Inventory', modified: 'Mar 29, 2026', size: '3.8 MB', sheets: ['FG by Category','WIP','Raw Materials','Reserves'], status: 'synced' },
+      { id: 'gf7', name: 'Prepaids_Other_Current_Q1_2026.xlsx', folder: 'Other Assets', modified: 'Mar 26, 2026', size: '156 KB', sheets: ['Prepaid Expenses','Other Current'], status: 'synced' },
+      { id: 'gf8', name: 'Fixed_Asset_Register_Q1_2026.xlsx', folder: 'PP&E', modified: 'Mar 28, 2026', size: '8.4 MB', sheets: ['Asset Register','Depreciation','CIP','Disposals'], status: 'synced' },
+      { id: 'gf9', name: 'Lease_Schedule_Q1_2026.xlsx', folder: 'Leases', modified: 'Mar 27, 2026', size: '920 KB', sheets: ['ROU Assets','Lease Liabilities','Amortization'], status: 'synced' },
+      { id: 'gf10', name: 'Goodwill_Impairment_Test.xlsx', folder: 'Intangibles', modified: 'Mar 15, 2026', size: '340 KB', sheets: ['CGU Summary','Impairment Test'], status: 'synced' },
+      { id: 'gf11', name: 'Other_Noncurrent_Assets_Q1_2026.xlsx', folder: 'Other Assets', modified: 'Mar 25, 2026', size: '210 KB', sheets: ['Equity Investments','Deferred Tax','Other LT'], status: 'synced' },
+      { id: 'gf12', name: 'AP_Subledger_Q1_2026.xlsx', folder: 'Payables', modified: 'Mar 31, 2026', size: '5.1 MB', sheets: ['AP Aging','Vendor Summary'], status: 'synced' },
+      { id: 'gf13', name: 'Accruals_Provisions_Q1_2026.xlsx', folder: 'Accruals', modified: 'Mar 30, 2026', size: '890 KB', sheets: ['Compensation','Benefits','Tax Accruals','Other Accruals'], status: 'synced' },
+      { id: 'gf14', name: 'Deferred_Revenue_Q1_2026.xlsx', folder: 'Revenue', modified: 'Mar 29, 2026', size: '445 KB', sheets: ['Prime Memberships','AWS Contracts','Gift Cards'], status: 'synced' },
+      { id: 'gf15', name: 'Debt_Schedule_Q1_2026.xlsx', folder: 'Debt', modified: 'Mar 20, 2026', size: '320 KB', sheets: ['Senior Notes','Term Loans','Amortization'], status: 'synced' },
+      { id: 'gf16', name: 'Lease_Liabilities_LT_Q1_2026.xlsx', folder: 'Leases', modified: 'Mar 27, 2026', size: '560 KB', sheets: ['LT Lease Obligations','Maturity Schedule'], status: 'synced' },
+      { id: 'gf17', name: 'Other_LT_Liabilities_Q1_2026.xlsx', folder: 'Other Liabilities', modified: 'Mar 26, 2026', size: '280 KB', sheets: ['Tax Reserves','Pension','Contingencies'], status: 'synced' },
+      { id: 'gf18', name: 'Equity_Rollforward_Q1_2026.xlsx', folder: 'Equity', modified: 'Mar 31, 2026', size: '175 KB', sheets: ['Common Stock','APIC','Retained Earnings','AOCI','Treasury Stock'], status: 'synced' },
+    ];
+
+    // Maps each docRow id to its source file breakdown
+    const sourceBreakdown = {
+      'r1': { total: '$73,387', sources: [
+        { fileId: 'gf1', sheet: 'Domestic Cash', cell: 'D42', value: '$45,201', label: 'Domestic operating accounts' },
+        { fileId: 'gf2', sheet: 'International Cash', cell: 'C38', value: '$18,899', label: 'International subsidiaries' },
+        { fileId: 'gf3', sheet: 'Restricted Cash', cell: 'B12', value: '$9,287', label: 'Restricted & escrow' },
+      ]},
+      'r2': { total: '$18,034', sources: [
+        { fileId: 'gf4', sheet: 'Treasury Bills', cell: 'E15', value: '$8,400', label: 'US Treasury bills (<90 days)' },
+        { fileId: 'gf4', sheet: 'Corporate Bonds', cell: 'E22', value: '$6,134', label: 'Corporate bonds (AA+ rated)' },
+        { fileId: 'gf4', sheet: 'Commercial Paper', cell: 'E8', value: '$3,500', label: 'Commercial paper' },
+      ]},
+      'r3': { total: '$42,412', sources: [
+        { fileId: 'gf5', sheet: 'Aging Summary', cell: 'F5', value: '$38,940', label: 'Trade receivables (net of allowance)' },
+        { fileId: 'gf5', sheet: 'Customer Detail', cell: 'H120', value: '$2,187', label: 'AWS receivables' },
+        { fileId: 'gf5', sheet: 'Aging Summary', cell: 'F12', value: '$1,285', label: 'Vendor receivables & other' },
+      ]},
+      'r4': { total: '$35,987', sources: [
+        { fileId: 'gf6', sheet: 'FG by Category', cell: 'G48', value: '$24,310', label: 'Finished goods — fulfillment' },
+        { fileId: 'gf6', sheet: 'Raw Materials', cell: 'D22', value: '$8,420', label: 'Raw materials & packaging' },
+        { fileId: 'gf6', sheet: 'WIP', cell: 'D15', value: '$4,890', label: 'Work in progress (devices)' },
+        { fileId: 'gf6', sheet: 'Reserves', cell: 'C8', value: '-$1,633', label: 'Inventory reserves & write-downs' },
+      ]},
+      'r5': { total: '$11,383', sources: [
+        { fileId: 'gf7', sheet: 'Prepaid Expenses', cell: 'D18', value: '$7,240', label: 'Prepaid content & licensing' },
+        { fileId: 'gf7', sheet: 'Other Current', cell: 'D12', value: '$4,143', label: 'Other current assets' },
+      ]},
+      'r6': { total: '$181,203', sources: [
+        { fileId: null, label: 'Sum of current assets (r1–r5)', value: '$181,203', computed: true },
+      ]},
+      'r7': { total: '$186,715', sources: [
+        { fileId: 'gf8', sheet: 'Asset Register', cell: 'J2500', value: '$312,400', label: 'Gross PP&E' },
+        { fileId: 'gf8', sheet: 'Depreciation', cell: 'F2500', value: '-$128,910', label: 'Accumulated depreciation' },
+        { fileId: 'gf8', sheet: 'CIP', cell: 'D85', value: '$3,225', label: 'Construction in progress' },
+      ]},
+      'r8': { total: '$72,642', sources: [
+        { fileId: 'gf9', sheet: 'ROU Assets', cell: 'F180', value: '$72,642', label: 'Operating lease ROU assets (net)' },
+      ]},
+      'r9': { total: '$22,749', sources: [
+        { fileId: 'gf10', sheet: 'CGU Summary', cell: 'E12', value: '$22,749', label: 'Goodwill (no impairment)' },
+      ]},
+      'r10': { total: '$28,366', sources: [
+        { fileId: 'gf11', sheet: 'Equity Investments', cell: 'D15', value: '$12,800', label: 'Equity method investments' },
+        { fileId: 'gf11', sheet: 'Deferred Tax', cell: 'D8', value: '$9,120', label: 'Deferred tax assets (net)' },
+        { fileId: 'gf11', sheet: 'Other LT', cell: 'D22', value: '$6,446', label: 'Other noncurrent assets' },
+      ]},
+      'r11': { total: '$462,675', sources: [
+        { fileId: null, label: 'Sum of all assets (r6+r7–r10)', value: '$462,675', computed: true },
+      ]},
+      'r12': { total: '$79,632', sources: [
+        { fileId: 'gf12', sheet: 'AP Aging', cell: 'G3', value: '$79,632', label: 'Accounts payable (all vendors)' },
+      ]},
+      'r13': { total: '$62,571', sources: [
+        { fileId: 'gf13', sheet: 'Compensation', cell: 'D25', value: '$28,400', label: 'Compensation & benefits accrual' },
+        { fileId: 'gf13', sheet: 'Tax Accruals', cell: 'D12', value: '$14,200', label: 'Income & other tax accruals' },
+        { fileId: 'gf13', sheet: 'Benefits', cell: 'D18', value: '$11,340', label: 'Employee benefits payable' },
+        { fileId: 'gf13', sheet: 'Other Accruals', cell: 'D30', value: '$8,631', label: 'Other accrued liabilities' },
+      ]},
+      'r14': { total: '$16,873', sources: [
+        { fileId: 'gf14', sheet: 'Prime Memberships', cell: 'D8', value: '$9,450', label: 'Prime membership deferrals' },
+        { fileId: 'gf14', sheet: 'AWS Contracts', cell: 'D15', value: '$5,123', label: 'AWS prepaid contracts' },
+        { fileId: 'gf14', sheet: 'Gift Cards', cell: 'D6', value: '$2,300', label: 'Unredeemed gift cards' },
+      ]},
+      'r15': { total: '$159,076', sources: [
+        { fileId: null, label: 'Sum of current liabilities (r12–r14)', value: '$159,076', computed: true },
+      ]},
+      'r16': { total: '$52,463', sources: [
+        { fileId: 'gf15', sheet: 'Senior Notes', cell: 'F18', value: '$48,200', label: 'Senior unsecured notes' },
+        { fileId: 'gf15', sheet: 'Term Loans', cell: 'F8', value: '$4,263', label: 'Term loan facilities' },
+      ]},
+      'r17': { total: '$65,048', sources: [
+        { fileId: 'gf16', sheet: 'LT Lease Obligations', cell: 'E90', value: '$65,048', label: 'Noncurrent operating lease liabilities' },
+      ]},
+      'r18': { total: '$24,981', sources: [
+        { fileId: 'gf17', sheet: 'Tax Reserves', cell: 'D15', value: '$12,600', label: 'Long-term tax reserves' },
+        { fileId: 'gf17', sheet: 'Pension', cell: 'D8', value: '$7,880', label: 'Pension & post-retirement' },
+        { fileId: 'gf17', sheet: 'Contingencies', cell: 'D12', value: '$4,501', label: 'Loss contingencies' },
+      ]},
+      'r19': { total: '$301,568', sources: [
+        { fileId: null, label: 'Sum of all liabilities (r15–r18)', value: '$301,568', computed: true },
+      ]},
+      'r20': { total: '$161,107', sources: [
+        { fileId: 'gf18', sheet: 'APIC', cell: 'D5', value: '$120,800', label: 'Additional paid-in capital' },
+        { fileId: 'gf18', sheet: 'Retained Earnings', cell: 'D5', value: '$45,320', label: 'Retained earnings' },
+        { fileId: 'gf18', sheet: 'AOCI', cell: 'D5', value: '-$3,810', label: 'Accum. other comprehensive loss' },
+        { fileId: 'gf18', sheet: 'Treasury Stock', cell: 'D5', value: '-$1,203', label: 'Treasury stock' },
+      ]},
+      'r21': { total: '$462,675', sources: [
+        { fileId: null, label: 'Sum of liabilities + equity (r19+r20)', value: '$462,675', computed: true },
+      ]},
+    };
+
     // ── Utility ──
     function getStatusColor(s) { return s==='complete'?'bg-emerald-100 text-emerald-700':s==='in-review'?'bg-amber-100 text-amber-700':s==='in-progress'?'bg-primary-100 text-primary-700':'bg-gray-100 text-gray-500'; }
     function getStatusLabel(s) { return s==='complete'?'Complete':s==='in-review'?'In Review':s==='in-progress'?'In Progress':s==='not-started'?'Not Started':s==='filed'?'Filed':s; }
@@ -344,7 +459,7 @@
       const navSections = [
         { label: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: Icons.Dashboard }] },
         { label: 'FILINGS', items: [{ id: 'filings-10q', label: '10-Q Filings', icon: Icons.Filing },{ id: 'filings-10k', label: '10-K Filings', icon: Icons.Filing }] },
-        { label: 'DISCLOSURES', items: [{ id: 'financial-statements', label: 'Financial Statements', icon: Icons.Financial },{ id: 'notes', label: 'Notes', icon: Icons.Notes },{ id: 'xbrl-tagging', label: 'XBRL Tagging', icon: Icons.XBRL },{ id: 'validation', label: 'Validation', icon: Icons.Validate }] },
+        { label: 'DISCLOSURES', items: [{ id: 'disclosure-builder', label: 'Disclosure Builder', icon: Icons.Drive },{ id: 'financial-statements', label: 'Financial Statements', icon: Icons.Financial },{ id: 'notes', label: 'Notes', icon: Icons.Notes },{ id: 'xbrl-tagging', label: 'XBRL Tagging', icon: Icons.XBRL },{ id: 'validation', label: 'Validation', icon: Icons.Validate }] },
         { label: 'SYSTEM', items: [{ id: 'settings', label: 'Settings', icon: Icons.Settings }] },
       ];
       const sidebarContent = (
@@ -547,6 +662,195 @@
     }
     function DisclosureSectionsTable(){return<div className="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover"><div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between"><h2 className="text-sm font-semibold text-gray-900">Disclosure Sections</h2><button className="text-[11px] font-medium text-primary-600 hover:text-primary-700 flex items-center gap-0.5">View all <Icons.ArrowRight /></button></div><div className="divide-y divide-gray-50">{disclosureSections.map(section=><div key={section.category}><div className="px-4 py-2 bg-gray-50"><h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{section.category}</h3></div>{section.items.map((item,i)=><div key={i} className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group"><div className="flex items-center gap-2.5 min-w-0">{item.status==='complete'?<div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>:<div className={`w-4 h-4 rounded-full border-2 shrink-0 ${item.status==='in-review'?'border-amber-400 bg-amber-50':item.status==='in-progress'?'border-primary-400 bg-primary-50':'border-gray-300'}`}></div>}<span className={`text-xs ${item.status==='complete'?'text-gray-500':'text-gray-800'} truncate`}>{item.name}</span></div><div className="flex items-center gap-2 shrink-0 ml-2">{item.errors>0&&<span className="hidden sm:flex items-center gap-0.5 text-red-500 text-[10px] font-medium"><Icons.Warning />{item.errors}</span>}<span className="hidden md:inline text-[10px] text-gray-400 font-medium">{item.tags} tags</span><span className={`px-2 py-px rounded-full text-[10px] font-medium ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span><span className="text-gray-300 group-hover:text-gray-500 transition-colors"><Icons.ArrowRight /></span></div></div>)}</div>)}</div></div>}
     function RecentActivity(){const a=[{action:'Completed',detail:'Entity Information tagging',user:'Jane Doe',time:'2h ago',color:'bg-emerald-500'},{action:'Submitted for review',detail:'Consolidated Balance Sheets',user:'Mike Chen',time:'5h ago',color:'bg-amber-500'},{action:'Started tagging',detail:'Revenue disaggregation',user:'Jane Doe',time:'Yesterday',color:'bg-primary-500'},{action:'Updated',detail:'US GAAP 2026 taxonomy loaded',user:'System',time:'Yesterday',color:'bg-gray-400'},{action:'Submitted for review',detail:'Statements of Operations',user:'Sarah Kim',time:'2 days ago',color:'bg-amber-500'}];return<div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5 card-hover h-full"><h2 className="text-sm font-semibold text-gray-900 mb-3">Recent Activity</h2><div className="space-y-2.5">{a.map((x,i)=><div key={i} className="flex items-start gap-2.5"><div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${x.color}`}></div><div className="min-w-0"><p className="text-xs text-gray-700 leading-tight"><span className="font-medium">{x.action}</span> {x.detail}</p><p className="text-[10px] text-gray-400 mt-px">{x.user} &middot; {x.time}</p></div></div>)}</div></div>}
+    // ══════════════════════════════════════════
+    // DISCLOSURE BUILDER PAGE
+    // ══════════════════════════════════════════
+    function DisclosureBuilderPage() {
+      const [activeFolder, setActiveFolder] = useState(null);
+      const [expandedRow, setExpandedRow] = useState(null);
+      const folders = [...new Set(driveFiles.map(f => f.folder))];
+      const filteredFiles = activeFolder ? driveFiles.filter(f => f.folder === activeFolder) : driveFiles;
+      const mappedRows = docRows.filter(r => sourceBreakdown[r.id] && !sourceBreakdown[r.id].sources[0].computed);
+      const computedRows = docRows.filter(r => sourceBreakdown[r.id] && sourceBreakdown[r.id].sources[0].computed);
+
+      return (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Disclosure Builder</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Source files from Google Drive are mapped to disclosure line items. Totals are computed automatically.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-lg">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <span className="text-[11px] font-medium text-emerald-700">Google Drive Connected</span>
+                </div>
+                <button className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium rounded-lg transition-colors flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  Sync Files
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              [driveFiles.length, 'Source Files', 'bg-primary-50', 'text-primary-700'],
+              [folders.length, 'Folders', 'bg-violet-50', 'text-violet-700'],
+              [mappedRows.length, 'Mapped Items', 'bg-emerald-50', 'text-emerald-700'],
+              [computedRows.length, 'Computed Totals', 'bg-amber-50', 'text-amber-700'],
+            ].map(([v, l, bg, tc], i) => (
+              <div key={i} className={`${bg} rounded-xl p-3 text-center`}>
+                <div className={`text-xl font-bold ${tc}`}>{v}</div>
+                <div className="text-[10px] text-gray-500 font-medium">{l}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Left: Google Drive file browser */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                <svg className="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor"><path d="M7.71 3.5L1.15 15l4.58 6h11.5l4.58-6L15.24 3.5H7.71zm.58 1h6.42l5.45 9.5h-6.92l-4.95-9.5zm-.88.53l4.66 8.97H5.64l4.77-8.97zM5.22 15h6.1l-2.87 5H5.8l-.58-5zm6.9 0h6.66l-.58 5H9.25l2.87-5z"/></svg>
+                <h3 className="text-xs font-semibold text-gray-800">Google Drive</h3>
+                <span className="text-[10px] text-gray-400 ml-auto">{driveFiles.length} files</span>
+              </div>
+              {/* Folder tabs */}
+              <div className="px-3 py-2 border-b border-gray-50 flex flex-wrap gap-1">
+                <button onClick={() => setActiveFolder(null)}
+                  className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${!activeFolder ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+                  All
+                </button>
+                {folders.map(f => (
+                  <button key={f} onClick={() => setActiveFolder(f)}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${activeFolder === f ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-100'}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              {/* File list */}
+              <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+                {filteredFiles.map(file => (
+                  <div key={file.id} className="px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0 mt-0.5">
+                        <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium text-gray-800 truncate">{file.name}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-400">{file.folder}</span>
+                          <span className="text-[10px] text-gray-300">&middot;</span>
+                          <span className="text-[10px] text-gray-400">{file.size}</span>
+                          <span className="text-[10px] text-gray-300">&middot;</span>
+                          <span className="text-[10px] text-gray-400">{file.modified}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {file.sheets.map(s => (
+                            <span key={s} className="px-1.5 py-px rounded bg-gray-100 text-[9px] text-gray-500 font-medium">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                        <span className="text-[9px] text-emerald-600 font-medium">Synced</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Line item mapping */}
+            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-800">Source-to-Disclosure Mapping</h3>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Each disclosure line item shows how source files roll up into the reported total</p>
+                </div>
+                <span className="text-[10px] text-gray-400">{docRows.length} line items</span>
+              </div>
+              <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+                {docRows.map(row => {
+                  const breakdown = sourceBreakdown[row.id];
+                  if (!breakdown) return null;
+                  const isExpanded = expandedRow === row.id;
+                  const isComputed = breakdown.sources[0].computed;
+                  return (
+                    <div key={row.id}>
+                      <button onClick={() => setExpandedRow(isExpanded ? null : row.id)}
+                        className={`w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-primary-50' : ''}`}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <svg className={`w-3 h-3 text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                          {isComputed ? (
+                            <div className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center shrink-0"><span className="text-amber-600 text-[9px] font-bold">&Sigma;</span></div>
+                          ) : (
+                            <div className="w-5 h-5 rounded bg-primary-100 flex items-center justify-center shrink-0">
+                              <svg className="w-3 h-3 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className={`text-xs ${row.bold ? 'font-bold text-gray-900' : 'text-gray-700'}`}>{row.label}</span>
+                            <div className="text-[10px] text-gray-400 mt-px">
+                              {isComputed ? 'Computed total' : `${breakdown.sources.length} source${breakdown.sources.length > 1 ? 's' : ''}`}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className={`font-mono text-sm ${row.bold ? 'font-bold text-gray-900' : 'text-gray-700'}`}>{row.val1}</span>
+                          {!isComputed && <span className="px-1.5 py-px rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-medium">{breakdown.sources.length} files</span>}
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-4 pb-3 bg-gray-50">
+                          <div className="ml-8 space-y-1 pt-1">
+                            {breakdown.sources.map((src, si) => {
+                              const file = src.fileId ? driveFiles.find(f => f.id === src.fileId) : null;
+                              return (
+                                <div key={si} className={`flex items-center justify-between p-2.5 rounded-lg ${src.computed ? 'bg-amber-50' : 'bg-white border border-gray-100'}`}>
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    {file ? (
+                                      <div className="w-6 h-6 rounded bg-emerald-50 flex items-center justify-center shrink-0">
+                                        <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                                      </div>
+                                    ) : (
+                                      <div className="w-6 h-6 rounded bg-amber-100 flex items-center justify-center shrink-0"><span className="text-amber-600 text-[9px] font-bold">&Sigma;</span></div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <div className="text-[11px] text-gray-700">{src.label}</div>
+                                      {file && (
+                                        <div className="text-[10px] text-gray-400 mt-px truncate">
+                                          {file.name} &rarr; <span className="font-medium">{src.sheet}</span> &middot; Cell {src.cell}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className={`font-mono text-xs shrink-0 ml-3 ${src.value.startsWith('-') ? 'text-red-600' : 'text-gray-700'} font-medium`}>{src.value}</span>
+                                </div>
+                              );
+                            })}
+                            {!isComputed && (
+                              <div className="flex items-center justify-between pt-2 border-t border-gray-200 mt-1">
+                                <span className="text-[11px] font-semibold text-gray-600 ml-9">Total</span>
+                                <span className="font-mono text-xs font-bold text-gray-900">{breakdown.total}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function DashboardPage(){return<div className="space-y-4"><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-2"><DeadlineCard /></div><div><OverallProgress /></div></div><div className="bg-white rounded-xl border border-gray-200 px-4 py-2.5 card-hover"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500"><span><span className="font-medium text-gray-700">CIK:</span> {COMPANY.cik}</span><span><span className="font-medium text-gray-700">SIC:</span> {COMPANY.sic}</span><span><span className="font-medium text-gray-700">Filer:</span> {COMPANY.filerCategory}</span><span><span className="font-medium text-gray-700">FY End:</span> {COMPANY.fiscalYearEnd}</span><span className="ml-auto text-[10px] text-gray-400">SEC EDGAR</span></div></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"><PriorQuarterCard /><QuickActions /><div className="md:col-span-2 xl:col-span-1"><ValidationPanel /></div></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-2"><DisclosureSectionsTable /></div><div><RecentActivity /></div></div></div>}
 
     // ══════════════════════════════════════════
@@ -569,6 +873,7 @@
       const [tagForm, setTagForm] = useState({ period: '2026-03-31', unit: 'USD', decimals: '-6' });
       const [toast, setToast] = useState(null);
       const [hoveredElement, setHoveredElement] = useState(null);
+      const [sourceHover, setSourceHover] = useState(null);
 
       const selectedTag = selectedTagId !== null ? tags.find(t => t.id === selectedTagId) : null;
       const selectedElemData = selectedElement ? taxonomyElements[selectedElement] : null;
@@ -820,13 +1125,43 @@
                             style={row.borderTop==='double'?{borderTop:'3px double #1f2937'}:row.borderTop?{borderTop:'1px solid #d1d5db'}:{}}
                             onClick={() => { if (canTag || isTagged) handleDocValueClick(row); }}>
                             <td className={`py-1 ${row.indent===2?'pl-6':row.indent===1?'pl-4':''} ${row.bold?'font-bold text-gray-800':'text-gray-600'}`}>{row.label}</td>
-                            <td className="py-1 text-right font-mono">
+                            <td className="py-1 text-right font-mono relative"
+                              onMouseEnter={() => sourceBreakdown[row.id] && setSourceHover(row.id)}
+                              onMouseLeave={() => setSourceHover(null)}>
                               {isTagged ? (
                                 <span className={`xbrl-tag-monetary px-1 ${isSelectedInDoc?'xbrl-tag-selected':''} ${isHovered?'xbrl-tag-hovered':''}`}>{row.val1}</span>
                               ) : canTag ? (
                                 <span className="xbrl-taggable">{row.val1}</span>
                               ) : (
                                 <span className={row.bold?'font-bold':''}>{row.val1}</span>
+                              )}
+                              {sourceHover === row.id && sourceBreakdown[row.id] && (
+                                <div className="absolute right-0 top-full mt-1 z-50 w-72 bg-gray-900 text-white rounded-xl shadow-2xl p-3 text-left" style={{pointerEvents:'none'}}>
+                                  <div className="flex items-center gap-1.5 mb-2">
+                                    <svg className="w-3.5 h-3.5 text-yellow-400" viewBox="0 0 24 24" fill="currentColor"><path d="M7.71 3.5L1.15 15l4.58 6h11.5l4.58-6L15.24 3.5H7.71zm.58 1h6.42l5.45 9.5h-6.92l-4.95-9.5zm-.88.53l4.66 8.97H5.64l4.77-8.97zM5.22 15h6.1l-2.87 5H5.8l-.58-5zm6.9 0h6.66l-.58 5H9.25l2.87-5z"/></svg>
+                                    <span className="text-[10px] font-semibold text-gray-300">Source Breakdown</span>
+                                    <span className="text-[9px] text-gray-500 ml-auto">Google Drive</span>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {sourceBreakdown[row.id].sources.map((src, si) => {
+                                      const file = src.fileId ? driveFiles.find(f => f.id === src.fileId) : null;
+                                      return (
+                                        <div key={si} className="flex items-start justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <div className="text-[10px] text-gray-200">{src.label}</div>
+                                            {file && <div className="text-[9px] text-gray-500 truncate">{file.name} &rarr; {src.sheet} [{src.cell}]</div>}
+                                            {src.computed && <div className="text-[9px] text-amber-400">Computed subtotal</div>}
+                                          </div>
+                                          <span className={`font-mono text-[11px] shrink-0 ${src.value.startsWith('-')?'text-red-400':'text-emerald-400'} font-medium`}>{src.value}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="mt-2 pt-1.5 border-t border-gray-700 flex items-center justify-between">
+                                    <span className="text-[10px] text-gray-400 font-medium">Total</span>
+                                    <span className="font-mono text-xs font-bold text-white">{sourceBreakdown[row.id].total}</span>
+                                  </div>
+                                </div>
                               )}
                             </td>
                             <td className="py-1 text-right font-mono text-gray-500">{row.val2}</td>
@@ -1990,6 +2325,7 @@
       const displayName = currentCompany.name;
       const pageTitles = {
         'dashboard': ['Disclosure Dashboard', `${displayName} \u00b7 Disclosure Management`],
+        'disclosure-builder': ['Disclosure Builder', `${displayName} \u00b7 Google Drive Source File Mapping`],
         'filings-10q': ['10-Q Filings', `${displayName} \u00b7 Quarterly Report Management`],
         'filings-10k': ['10-K Filings', `${displayName} \u00b7 Annual Report Management`],
         'financial-statements': ['Financial Statements', 'Review and manage condensed consolidated statements'],
@@ -1999,7 +2335,7 @@
         'settings': ['Settings', 'Application and filing configuration'],
       };
       const [title, subtitle] = pageTitles[activePage] || ['Page', ''];
-      const renderPage = () => { switch(activePage){ case 'dashboard':return <DashboardPage/>;case 'filings-10q':return <FilingsPage/>;case 'filings-10k':return <TenKFilingsPage/>;case 'xbrl-tagging':return <XBRLTaggingPage/>;default:return <PlaceholderPage title={title} desc="This section is under development."/>; }};
+      const renderPage = () => { switch(activePage){ case 'dashboard':return <DashboardPage/>;case 'disclosure-builder':return <DisclosureBuilderPage/>;case 'filings-10q':return <FilingsPage/>;case 'filings-10k':return <TenKFilingsPage/>;case 'xbrl-tagging':return <XBRLTaggingPage/>;default:return <PlaceholderPage title={title} desc="This section is under development."/>; }};
       return (
         <div className="flex min-h-screen bg-gray-50">
           <Sidebar activePage={activePage} onNavigate={(p)=>{if(showNewCompany){guardedCloseWizard(()=>{setActivePage(p);setShowNewCompany(false);});}else{setActivePage(p);}}} mobileOpen={mobileOpen} onMobileClose={()=>setMobileOpen(false)} onNewCompany={()=>setShowNewCompany(true)} selectedCompany={selectedCompany} onSelectCompany={setSelectedCompany} companies={companies} />
