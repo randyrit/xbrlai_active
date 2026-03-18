@@ -3574,44 +3574,39 @@
       const [mobileOpen, setMobileOpen] = useState(false);
       const [showNewCompany, setShowNewCompany] = useState(false);
       const [selectedCompany, setSelectedCompany] = useState(0);
-      const [companies, setCompanies] = useState([]);
-      const [companiesLoading, setCompaniesLoading] = useState(true);
+      const [companies, setCompanies] = useState(companyList);
+      const wizardDirtyRef = useRef(false);
+      const wizardExitCbRef = useRef(null);
+      const wizardTryExitRef = useRef(null);
 
-      // Load companies from Supabase
+      // Load companies from Supabase (non-blocking, replaces mock list if data found)
       useEffect(() => {
         if (!user) return;
         let cancelled = false;
         (async () => {
-          const rows = await db.getCompanies();
-          if (!cancelled) {
-            if (rows.length > 0) {
+          try {
+            const rows = await db.getCompanies();
+            if (!cancelled && rows.length > 0) {
               setCompanies(rows.map((c, i) => mapCompanyFromDb(c, i)));
-            } else {
-              setCompanies([]);
-              setShowNewCompany(true);
+              setSelectedCompany(0);
             }
-            setCompaniesLoading(false);
-          }
+          } catch (e) { console.error('Failed to load companies:', e); }
         })();
         return () => { cancelled = true; };
       }, [user]);
 
       // Auth gate
-      if (authLoading || (user && companiesLoading)) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-sm text-gray-500">Loading...</div></div>;
+      if (authLoading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-sm text-gray-500">Loading...</div></div>;
       if (!user) return <LoginPage />;
-      const wizardDirtyRef = useRef(false);
-      const wizardExitCbRef = useRef(null);
       const guardedCloseWizard = (cb) => {
         if (showNewCompany && wizardDirtyRef.current) {
           wizardExitCbRef.current = cb;
-          // trigger the wizard's modal via a ref callback
           if (wizardTryExitRef.current) wizardTryExitRef.current();
           return;
         }
         setShowNewCompany(false);
         if (cb) cb();
       };
-      const wizardTryExitRef = useRef(null);
       const handleNewCompanyComplete = async (formData) => {
         const dbCompany = await db.createCompany({
           name: formData.companyName, ticker: formData.ticker, cik: formData.cik,
