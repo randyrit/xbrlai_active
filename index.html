@@ -780,10 +780,10 @@
 
     // ── Sidebar ──
     function Sidebar({ activePage, onNavigate, mobileOpen, onMobileClose, onNewCompany, selectedCompany, onSelectCompany, companies }) {
-      const list = companies || companyList;
+      const list = (companies && companies.length > 0) ? companies : companyList;
       const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
       const dropdownRef = useRef(null);
-      const company = list[selectedCompany] || list[0];
+      const company = list[selectedCompany] || list[0] || { name: 'New Company', ticker: '—', initial: '?', color: 'bg-gray-500' };
 
       // Close dropdown on outside click
       useEffect(() => {
