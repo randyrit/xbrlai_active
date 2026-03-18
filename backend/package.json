@@ -1,0 +1,17 @@
+{
+  "name": "xbrl-disclosure-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:seed": "supabase db seed",
+    "functions:serve": "supabase functions serve",
+    "functions:deploy": "supabase functions deploy",
+    "start": "supabase start",
+    "stop": "supabase stop"
+  },
+  "dependencies": {
+    "supabase": "^1.200.0"
+  }
+}

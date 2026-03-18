@@ -8,6 +8,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -54,7 +55,285 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef, useCallback } = React;
+    const { useState, useEffect, useRef, useCallback, createContext, useContext } = React;
+
+    // ── Supabase Client ──
+    const SUPABASE_URL = 'https://sqtbfcbniqhrcxvityrn.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxdGJmY2JuaXFocmN4dml0eXJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MjA4MzIsImV4cCI6MjA4OTM5NjgzMn0.BX1j5m1dW_504AE07hSs2QIzNKBGnmZFs0vTuIGedmQ';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ── Auth Context ──
+    const AuthContext = createContext({ user: null, session: null, loading: true });
+    const useAuth = () => useContext(AuthContext);
+
+    // ── Supabase Data Helpers ──
+    const db = {
+      // Companies
+      async getCompanies() {
+        const { data, error } = await supabase.from('companies').select('*').order('created_at');
+        return data || [];
+      },
+      async createCompany(company) {
+        const { data, error } = await supabase.from('companies').insert(company).select().single();
+        if (error) console.error('createCompany error:', error);
+        return data;
+      },
+
+      // Filings
+      async getFilings(companyId, filingType) {
+        let query = supabase.from('filings').select('*').eq('company_id', companyId).order('period_end', { ascending: false });
+        if (filingType) query = query.eq('filing_type', filingType);
+        const { data } = await query;
+        return data || [];
+      },
+
+      // Filing items (checklist)
+      async getFilingItems(filingId) {
+        const { data } = await supabase.from('filing_items').select('*').eq('filing_id', filingId).order('sort_order');
+        return data || [];
+      },
+      async updateFilingItem(id, updates) {
+        const { data } = await supabase.from('filing_items').update(updates).eq('id', id).select().single();
+        return data;
+      },
+
+      // Document rows
+      async getDocumentRows(filingId) {
+        const { data } = await supabase.from('document_rows').select('*').eq('filing_id', filingId).order('sort_order');
+        return data || [];
+      },
+
+      // Overrides
+      async getOverrides(filingId) {
+        const { data } = await supabase.from('overrides').select('*, document_rows!inner(filing_id)').eq('document_rows.filing_id', filingId).eq('is_active', true);
+        return data || [];
+      },
+      async createOverride(rowId, originalValue, overrideValue, reason) {
+        const { data } = await supabase.from('overrides').insert({ document_row_id: rowId, original_value: originalValue, override_value: overrideValue, reason, created_by: (await supabase.auth.getUser()).data.user?.id }).select().single();
+        return data;
+      },
+      async deactivateOverride(id) {
+        await supabase.from('overrides').update({ is_active: false }).eq('id', id);
+      },
+
+      // Flags
+      async getFlags(filingId) {
+        const { data } = await supabase.from('flags').select('*, document_rows!inner(filing_id)').eq('document_rows.filing_id', filingId).eq('resolved', false);
+        return data || [];
+      },
+      async createFlag(rowId, reason) {
+        const { data } = await supabase.from('flags').insert({ document_row_id: rowId, reason, flagged_by: (await supabase.auth.getUser()).data.user?.id }).select().single();
+        return data;
+      },
+      async resolveFlag(id) {
+        await supabase.from('flags').update({ resolved: true, resolved_at: new Date().toISOString(), resolved_by: (await supabase.auth.getUser()).data.user?.id }).eq('id', id);
+      },
+
+      // Comments
+      async getComments(filingId) {
+        const { data } = await supabase.from('comments').select('*, document_rows!inner(filing_id)').eq('document_rows.filing_id', filingId);
+        return data || [];
+      },
+      async createComment(rowId, content) {
+        const { data } = await supabase.from('comments').insert({ document_row_id: rowId, content, user_id: (await supabase.auth.getUser()).data.user?.id }).select().single();
+        return data;
+      },
+      async updateComment(id, content) {
+        await supabase.from('comments').update({ content }).eq('id', id);
+      },
+      async deleteComment(id) {
+        await supabase.from('comments').delete().eq('id', id);
+      },
+
+      // Signoffs
+      async getSignoffs(filingId) {
+        const { data } = await supabase.from('signoffs').select('*, filing_items!inner(filing_id)').eq('filing_items.filing_id', filingId);
+        return data || [];
+      },
+      async createSignoff(filingItemId, signoffType) {
+        const { data } = await supabase.from('signoffs').insert({ filing_item_id: filingItemId, signoff_type: signoffType, user_id: (await supabase.auth.getUser()).data.user?.id }).select().single();
+        return data;
+      },
+
+      // Activity log
+      async getActivity(companyId, limit = 20) {
+        const { data } = await supabase.from('activity_log').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(limit);
+        return data || [];
+      },
+      async logActivity(companyId, filingId, action, target, detail) {
+        await supabase.from('activity_log').insert({ company_id: companyId, filing_id: filingId, action, target, detail, user_id: (await supabase.auth.getUser()).data.user?.id });
+      },
+
+      // Team members
+      async getTeamMembers(companyId) {
+        const { data } = await supabase.from('team_members').select('*').eq('company_id', companyId);
+        return data || [];
+      },
+      async addTeamMember(companyId, name, email, role) {
+        const { data } = await supabase.from('team_members').insert({ company_id: companyId, name, email, role, user_id: (await supabase.auth.getUser()).data.user?.id }).select().single();
+        return data;
+      },
+
+      // EDGAR proxy (calls Edge Function)
+      async edgarSubmissions(cik) {
+        const { data, error } = await supabase.functions.invoke('edgar-proxy', { body: { action: 'submissions', cik } });
+        if (error) console.error('EDGAR submissions error:', error);
+        return data;
+      },
+      async edgarCompanyFacts(cik) {
+        const { data, error } = await supabase.functions.invoke('edgar-proxy', { body: { action: 'company-facts', cik } });
+        if (error) console.error('EDGAR facts error:', error);
+        return data;
+      },
+      async syncCompanyFacts(companyId, cik, filingType) {
+        const { data, error } = await supabase.functions.invoke('sync-company-facts', { body: { company_id: companyId, cik, filing_type: filingType } });
+        if (error) console.error('Sync error:', error);
+        return data;
+      },
+
+      // Seed filing structure (checklist items + disclosure sections)
+      async seedFilingItems(filingId) {
+        const { data, error } = await supabase.functions.invoke('seed-filing-items', { body: { filing_id: filingId } });
+        if (error) console.error('Seed error:', error);
+        return data;
+      },
+
+      // Validate filing (XBRL calc checks, required concepts, cross-statement)
+      async validateFiling(filingId) {
+        const { data, error } = await supabase.functions.invoke('validate-filing', { body: { filing_id: filingId } });
+        if (error) console.error('Validation error:', error);
+        return data;
+      },
+
+      // Validation issues
+      async getValidationIssues(filingId) {
+        const { data } = await supabase.from('validation_issues').select('*').eq('filing_id', filingId).order('created_at');
+        return data || [];
+      },
+      async resolveValidationIssue(id) {
+        await supabase.from('validation_issues').update({ is_resolved: true, resolved_at: new Date().toISOString(), resolved_by: (await supabase.auth.getUser()).data.user?.id }).eq('id', id);
+      },
+
+      // Disclosure sections
+      async getDisclosureSections(filingId) {
+        const { data } = await supabase.from('disclosure_sections').select('*').eq('filing_id', filingId).order('sort_order');
+        return data || [];
+      },
+      async updateDisclosureSection(id, updates) {
+        const { data } = await supabase.from('disclosure_sections').update(updates).eq('id', id).select().single();
+        return data;
+      },
+
+      // Document rows by statement type
+      async getDocumentRowsByStatement(filingId, statementType) {
+        const { data } = await supabase.from('document_rows').select('*').eq('filing_id', filingId).eq('statement_type', statementType).order('sort_order');
+        return data || [];
+      },
+
+      // Filing item attachments
+      async getAttachments(filingItemId) {
+        const { data } = await supabase.from('filing_item_attachments').select('*').eq('filing_item_id', filingItemId).order('created_at');
+        return data || [];
+      },
+      async addAttachment(filingItemId, fileName, fileUrl) {
+        const { data } = await supabase.from('filing_item_attachments').insert({ filing_item_id: filingItemId, file_name: fileName, file_url: fileUrl, uploaded_by: (await supabase.auth.getUser()).data.user?.id }).select().single();
+        return data;
+      },
+    };
+
+    // ── Auth Provider Component ──
+    function AuthProvider({ children }) {
+      const [user, setUser] = useState(null);
+      const [session, setSession] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          setSession(session);
+          setUser(session?.user ?? null);
+        });
+        return () => subscription.unsubscribe();
+      }, []);
+
+      return <AuthContext.Provider value={{ user, session, loading }}>{children}</AuthContext.Provider>;
+    }
+
+    // ── Login Page ──
+    function LoginPage() {
+      const [mode, setMode] = useState('login');
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [success, setSuccess] = useState('');
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        setLoading(true);
+        try {
+          if (mode === 'login') {
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            setSuccess('Check your email for a confirmation link.');
+          }
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm">
+            <div className="text-center mb-6">
+              <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>
+              </div>
+              <h1 className="text-lg font-bold text-gray-900">Tagline AI</h1>
+              <p className="text-xs text-gray-500 mt-1">XBRL Disclosure Management</p>
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gray-900 mb-4">{mode === 'login' ? 'Sign in to your account' : 'Create an account'}</h2>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400" placeholder="you@company.com" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-600 mb-1">Password</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400" placeholder="••••••••" />
+                </div>
+                {error && <p className="text-[11px] text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+                {success && <p className="text-[11px] text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2">{success}</p>}
+                <button type="submit" disabled={loading}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-50">
+                  {loading ? 'Loading...' : mode === 'login' ? 'Sign In' : 'Sign Up'}
+                </button>
+              </form>
+              <div className="mt-4 text-center">
+                <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setSuccess(''); }}
+                  className="text-[11px] text-primary-600 hover:text-primary-700 font-medium">
+                  {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     // ── Icons ──
     const Icons = {
@@ -133,24 +412,31 @@
     ];
 
     const tenQFilings = [
-      { period: 'Q1 2026', periodEnd: 'Mar 31, 2026', deadline: 'May 10, 2026', status: 'in-progress', pct: 22, accession: 'Pending' },
-      { period: 'Q3 2025', periodEnd: 'Sep 30, 2025', deadline: 'Nov 9, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000123' },
-      { period: 'Q2 2025', periodEnd: 'Jun 30, 2025', deadline: 'Aug 9, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000078' },
-      { period: 'Q1 2025', periodEnd: 'Mar 31, 2025', deadline: 'May 10, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000036' },
+      { period: 'Q1 2026', periodEnd: 'Mar 31, 2026', filingDate: null, deadline: 'May 10, 2026', status: 'in-progress', pct: 22, accession: 'Pending',
+        revenue: null, netIncome: null, totalAssets: null, eps: null, segments: null },
+      { period: 'Q3 2025', periodEnd: 'Sep 30, 2025', filingDate: 'Oct 29, 2025', deadline: 'Nov 9, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000123',
+        revenue: '$158.9B', netIncome: '$15.3B', totalAssets: '$585.4B', eps: '$1.43',
+        segments: { na:'$95.5B', intl:'$35.9B', aws:'$27.5B' } },
+      { period: 'Q2 2025', periodEnd: 'Jun 30, 2025', filingDate: 'Aug 1, 2025', deadline: 'Aug 9, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000078',
+        revenue: '$153.0B', netIncome: '$14.9B', totalAssets: '$572.6B', eps: '$1.38',
+        segments: { na:'$92.0B', intl:'$34.5B', aws:'$26.5B' } },
+      { period: 'Q1 2025', periodEnd: 'Mar 31, 2025', filingDate: 'May 1, 2025', deadline: 'May 10, 2025', status: 'filed', pct: 100, accession: '0001018724-25-000036',
+        revenue: '$143.3B', netIncome: '$10.4B', totalAssets: '$555.9B', eps: '$0.98',
+        segments: { na:'$86.3B', intl:'$31.9B', aws:'$25.0B' } },
     ];
     const tenQParts = [
       { part: 'Part I \u2013 Financial Information', items: [
-        { item: 'Item 1', name: 'Financial Statements', status: 'in-progress', desc: 'Condensed consolidated financial statements including balance sheets, income statements, comprehensive income, cash flows, and stockholders\u2019 equity with accompanying notes.', assignee: 'Jane Doe', due: 'Apr 10' },
-        { item: 'Item 2', name: 'Management\u2019s Discussion & Analysis', status: 'not-started', desc: 'MD&A covering results of operations, liquidity and capital resources, and critical accounting estimates.', assignee: 'Mike Chen', due: 'Apr 18' },
-        { item: 'Item 3', name: 'Quantitative & Qualitative Disclosures About Market Risk', status: 'not-started', desc: 'Interest rate risk, foreign currency risk, and equity price risk exposures.', assignee: 'Sarah Kim', due: 'Apr 20' },
-        { item: 'Item 4', name: 'Controls and Procedures', status: 'not-started', desc: 'Disclosure controls effectiveness evaluation and changes in internal control over financial reporting.', assignee: 'Mike Chen', due: 'Apr 22' },
+        { item: 'Item 1', name: 'Financial Statements', status: 'in-progress', desc: 'Condensed consolidated financial statements including balance sheets, income statements, comprehensive income, cash flows, and stockholders\u2019 equity with accompanying notes.', assignee: 'Jane Doe', due: 'Apr 10', reviewer: 'Mike Chen', blocked: false, files: ['Q1_2026_Balance_Sheet.xlsx','Q1_2026_Income_Statement.xlsx','Q1_2026_Cash_Flows.xlsx'], notes: ['Draft balance sheet uploaded — pending inventory reconciliation'] },
+        { item: 'Item 2', name: 'Management\u2019s Discussion & Analysis', status: 'not-started', desc: 'MD&A covering results of operations, liquidity and capital resources, and critical accounting estimates.', assignee: 'Mike Chen', due: 'Apr 18', reviewer: 'Sarah Kim', blocked: false, files: ['MD&A_Template_Q1_2026.docx'], notes: [] },
+        { item: 'Item 3', name: 'Quantitative & Qualitative Disclosures About Market Risk', status: 'not-started', desc: 'Interest rate risk, foreign currency risk, and equity price risk exposures.', assignee: 'Sarah Kim', due: 'Apr 20', reviewer: 'Jane Doe', blocked: false, files: ['Market_Risk_Data_Q1.xlsx'], notes: [] },
+        { item: 'Item 4', name: 'Controls and Procedures', status: 'not-started', desc: 'Disclosure controls effectiveness evaluation and changes in internal control over financial reporting.', assignee: 'Mike Chen', due: 'Apr 22', reviewer: 'Legal Team', blocked: false, files: [], notes: [] },
       ]},
       { part: 'Part II \u2013 Other Information', items: [
-        { item: 'Item 1', name: 'Legal Proceedings', status: 'not-started', desc: 'Material pending legal proceedings and updates to prior disclosures.', assignee: 'Legal Team', due: 'Apr 25' },
-        { item: 'Item 1A', name: 'Risk Factors', status: 'not-started', desc: 'Material changes to risk factors previously disclosed in the 10-K.', assignee: 'Sarah Kim', due: 'Apr 25' },
-        { item: 'Item 2', name: 'Unregistered Sales of Equity Securities & Use of Proceeds', status: 'not-started', desc: 'Share repurchase activity and any unregistered equity issuances.', assignee: 'Jane Doe', due: 'Apr 28' },
-        { item: 'Item 5', name: 'Other Information', status: 'not-started', desc: 'Information required to be reported on Form 8-K during the quarter.', assignee: 'Mike Chen', due: 'Apr 30' },
-        { item: 'Item 6', name: 'Exhibits', status: 'not-started', desc: 'Certifications (302/906), XBRL instance document, and other required exhibits.', assignee: 'Jane Doe', due: 'May 5' },
+        { item: 'Item 1', name: 'Legal Proceedings', status: 'not-started', desc: 'Material pending legal proceedings and updates to prior disclosures.', assignee: 'Legal Team', due: 'Apr 25', reviewer: 'Sarah Kim', blocked: true, files: ['Pending_Litigation_Summary.pdf'], notes: ['Blocked: waiting on outside counsel review of FTC matter'] },
+        { item: 'Item 1A', name: 'Risk Factors', status: 'not-started', desc: 'Material changes to risk factors previously disclosed in the 10-K.', assignee: 'Sarah Kim', due: 'Apr 25', reviewer: 'Mike Chen', blocked: false, files: ['10K_Risk_Factors_Redline.docx'], notes: [] },
+        { item: 'Item 2', name: 'Unregistered Sales of Equity Securities & Use of Proceeds', status: 'not-started', desc: 'Share repurchase activity and any unregistered equity issuances.', assignee: 'Jane Doe', due: 'Apr 28', reviewer: 'Mike Chen', blocked: false, files: [], notes: [] },
+        { item: 'Item 5', name: 'Other Information', status: 'not-started', desc: 'Information required to be reported on Form 8-K during the quarter.', assignee: 'Mike Chen', due: 'Apr 30', reviewer: 'Jane Doe', blocked: false, files: [], notes: [] },
+        { item: 'Item 6', name: 'Exhibits', status: 'not-started', desc: 'Certifications (302/906), XBRL instance document, and other required exhibits.', assignee: 'Jane Doe', due: 'May 5', reviewer: 'Legal Team', blocked: false, files: ['Cert_302_Template.docx','Cert_906_Template.docx'], notes: [] },
       ]},
     ];
     const filingWorkflowStages = [
@@ -496,17 +782,20 @@
           <nav className="flex-1 overflow-y-auto py-2 px-2.5">
             {navSections.map(section=><div key={section.label} className="mb-3"><div className="px-2.5 mb-1 text-[10px] font-semibold text-gray-400 tracking-widest">{section.label}</div>{section.items.map(item=>{const isActive=activePage===item.id;const Icon=item.icon;return<button key={item.id} onClick={()=>{onNavigate(item.id);onMobileClose();}} className={`nav-item w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] font-medium mb-px ${isActive?'bg-primary-50 text-primary-700':'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}><span className={isActive?'text-primary-600':'text-gray-400'}><Icon /></span>{item.label}</button>})}</div>)}
           </nav>
-          <div className="px-3 py-2.5 border-t border-gray-100 shrink-0"><div className="bg-primary-50 rounded-lg p-2.5"><div className="flex items-center gap-1.5 mb-0.5"><Icons.Clock /><span className="text-xs font-semibold text-primary-800">Q1 2026 10-Q</span></div><div className="text-[11px] text-primary-600 font-medium">Due May 10, 2026</div><div className="text-[10px] text-primary-500">55 days remaining</div></div></div>
+          <div className="px-3 py-2.5 border-t border-gray-100 shrink-0"><div className="bg-primary-50 rounded-lg p-2.5 mb-2"><div className="flex items-center gap-1.5 mb-0.5"><Icons.Clock /><span className="text-xs font-semibold text-primary-800">Q1 2026 10-Q</span></div><div className="text-[11px] text-primary-600 font-medium">Due May 10, 2026</div><div className="text-[10px] text-primary-500">55 days remaining</div></div><button onClick={() => supabase.auth.signOut()} className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>Sign Out</button></div>
         </div>
       );
       return (<><aside className="hidden lg:flex w-60 bg-white border-r border-gray-200 flex-col h-screen fixed left-0 top-0 z-30">{sidebarContent}</aside>{mobileOpen&&<div className="lg:hidden fixed inset-0 z-40"><div className="absolute inset-0 bg-black/30" onClick={onMobileClose}></div><aside className="relative w-64 max-w-[80vw] bg-white h-full shadow-xl">{sidebarContent}</aside></div>}</>);
     }
 
     function Header({ title, subtitle, onMenuClick }) {
+      const { user } = useAuth();
+      const userEmail = user?.email || '';
+      const userInitials = userEmail ? userEmail.substring(0, 2).toUpperCase() : 'U';
       return (
         <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <div className="flex items-center gap-3 min-w-0"><button onClick={onMenuClick} className="lg:hidden p-1 text-gray-500 hover:text-gray-700"><Icons.Menu /></button><div className="min-w-0"><h1 className="text-sm lg:text-base font-semibold text-gray-900 truncate">{title}</h1><p className="text-[11px] text-gray-400 truncate -mt-px">{subtitle}</p></div></div>
-          <div className="flex items-center gap-2"><button className="relative p-1.5 text-gray-400 hover:text-gray-600 transition-colors"><Icons.Bell /><span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span></button><div className="w-px h-7 bg-gray-200 hidden sm:block"></div><div className="hidden sm:flex items-center gap-2"><div className="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center"><span className="text-white text-[10px] font-semibold">JD</span></div><div className="text-right hidden md:block"><div className="text-xs font-medium text-gray-700">Jane Doe</div><div className="text-[10px] text-gray-400">SEC Reporting</div></div></div></div>
+          <div className="flex items-center gap-2"><button className="relative p-1.5 text-gray-400 hover:text-gray-600 transition-colors"><Icons.Bell /><span className="absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span></button><div className="w-px h-7 bg-gray-200 hidden sm:block"></div><div className="hidden sm:flex items-center gap-2"><div className="w-7 h-7 bg-primary-600 rounded-full flex items-center justify-center"><span className="text-white text-[10px] font-semibold">{userInitials}</span></div><div className="text-right hidden md:block"><div className="text-xs font-medium text-gray-700 truncate max-w-[140px]">{userEmail}</div><div className="text-[10px] text-gray-400">SEC Reporting</div></div></div></div>
         </header>
       );
     }
@@ -1263,9 +1552,494 @@
     function DashboardPage(){return<div className="space-y-4"><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-2"><DeadlineCard /></div><div><OverallProgress /></div></div><div className="bg-white rounded-xl border border-gray-200 px-4 py-2.5 card-hover"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500"><span><span className="font-medium text-gray-700">CIK:</span> {COMPANY.cik}</span><span><span className="font-medium text-gray-700">SIC:</span> {COMPANY.sic}</span><span><span className="font-medium text-gray-700">Filer:</span> {COMPANY.filerCategory}</span><span><span className="font-medium text-gray-700">FY End:</span> {COMPANY.fiscalYearEnd}</span><span className="ml-auto text-[10px] text-gray-400">SEC EDGAR</span></div></div><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"><PriorQuarterCard /><QuickActions /><div className="md:col-span-2 xl:col-span-1"><ValidationPanel /></div></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="lg:col-span-2"><DisclosureSectionsTable /></div><div><RecentActivity /></div></div></div>}
 
     // ══════════════════════════════════════════
-    // 10-Q FILINGS PAGE (unchanged)
+    // 10-Q FILINGS PAGE (enhanced)
     // ══════════════════════════════════════════
-    function FilingsPage(){const[sf,setSf]=useState(0);const f=tenQFilings[sf];const ic=f.status==='in-progress';return<div className="space-y-4"><div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">{tenQFilings.map((x,i)=><button key={i} onClick={()=>setSf(i)} className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all ${sf===i?'border-primary-400 bg-primary-50 ring-1 ring-primary-200':'border-gray-200 bg-white hover:border-gray-300 card-hover'}`}><div className="flex items-center justify-between mb-1"><span className="text-[11px] sm:text-xs font-semibold text-gray-800">{x.period}</span><span className={`px-1.5 py-px rounded-full text-[9px] font-medium ${x.status==='filed'?'bg-emerald-100 text-emerald-700':'bg-primary-100 text-primary-700'}`}>{x.status==='filed'?'Filed':'In Progress'}</span></div><div className="text-[10px] text-gray-400 truncate">Period: {x.periodEnd}</div><div className="text-[10px] text-gray-400 truncate">Deadline: {x.deadline}</div><div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${x.status==='filed'?'bg-emerald-500':'bg-primary-500'}`} style={{width:`${x.pct}%`}}></div></div></button>)}</div>{ic&&<div className="bg-white rounded-xl border border-gray-200 p-4"><h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Workflow</h2><div className="flex items-center gap-1 overflow-x-auto pb-1">{filingWorkflowStages.map((s,i)=><React.Fragment key={i}><div className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium ${s.status==='active'?'bg-primary-600 text-white':'bg-gray-100 text-gray-500'}`}>{s.label}</div>{i<filingWorkflowStages.length-1&&<div className="shrink-0 w-4 h-px bg-gray-300"></div>}</React.Fragment>)}</div></div>}<div className="grid grid-cols-1 lg:grid-cols-3 gap-4"><div className="bg-white rounded-xl border border-gray-200 p-4 card-hover"><h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Details</h2><div className="space-y-2">{[['Form Type','10-Q'],['Registrant',COMPANY.name],['CIK',COMPANY.cik],['Period End',f.periodEnd],['Deadline',f.deadline],['Filer Category',COMPANY.filerCategory],['Fiscal Year End',COMPANY.fiscalYearEnd],['Accession #',f.accession]].map(([k,v],i)=><div key={i} className="flex justify-between text-[11px]"><span className="text-gray-500">{k}</span><span className="font-medium text-gray-800 text-right">{v}</span></div>)}</div>{ic&&<div className="mt-3 pt-3 border-t border-gray-100 flex gap-2"><button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Eye /> Preview</button><button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"><Icons.Download /> Export</button></div>}</div><div className="lg:col-span-2 space-y-3">{tenQParts.map((part,pi)=><div key={pi} className="bg-white rounded-xl border border-gray-200 overflow-hidden card-hover"><div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100"><h3 className="text-xs font-semibold text-gray-700">{part.part}</h3></div><div className="divide-y divide-gray-50">{part.items.map((item,ii)=><div key={ii} className="px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer group"><div className="flex items-start justify-between gap-3"><div className="flex items-start gap-2.5 min-w-0">{ic?(item.status==='complete'?<div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>:<div className={`w-4 h-4 mt-0.5 rounded-full border-2 shrink-0 ${item.status==='in-progress'?'border-primary-400 bg-primary-50':'border-gray-300'}`}></div>):<div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><span className="text-white"><svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></span></div>}<div className="min-w-0"><div className="flex items-center gap-2"><span className="text-[10px] font-mono font-semibold text-primary-600">{item.item}</span><span className="text-xs font-medium text-gray-800">{item.name}</span></div><p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{item.desc}</p>{ic&&<div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5"><span className="text-[10px] text-gray-400">Assignee: <span className="font-medium text-gray-600">{item.assignee}</span></span><span className="text-[10px] text-gray-400">Due: <span className="font-medium text-gray-600">{item.due}</span></span></div>}</div></div><div className="flex items-center gap-2 shrink-0 mt-0.5">{ic&&<span className={`hidden sm:inline px-2 py-px rounded-full text-[10px] font-medium ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span>}<span className="text-gray-300 group-hover:text-gray-500"><Icons.ArrowRight /></span></div></div></div>)}</div></div>)}</div></div></div>}
+    const tenQActivity = [
+      { user: 'Jane Doe', avatar: 'JD', color: 'bg-primary-500', action: 'Uploaded', target: 'Q1_2026_Balance_Sheet.xlsx', detail: 'Draft condensed balance sheet for Q1 2026', time: '2 hours ago' },
+      { user: 'Mike Chen', avatar: 'MC', color: 'bg-emerald-500', action: 'Commented', target: 'Item 2 — MD&A', detail: 'Need updated segment breakdown before starting draft', time: '5 hours ago' },
+      { user: 'Sarah Kim', avatar: 'SK', color: 'bg-violet-500', action: 'Flagged', target: 'Item 1 — Legal Proceedings', detail: 'Blocked pending outside counsel review of FTC matter', time: '1 day ago' },
+      { user: 'Jane Doe', avatar: 'JD', color: 'bg-primary-500', action: 'Updated', target: 'Item 1 — Financial Statements', detail: 'Marked as in-progress, starting condensed financials', time: '1 day ago' },
+      { user: 'Mike Chen', avatar: 'MC', color: 'bg-emerald-500', action: 'Approved', target: 'Filing timeline', detail: 'Confirmed May 10 deadline — 40 day window for LAF', time: '2 days ago' },
+      { user: 'Legal Team', avatar: 'LT', color: 'bg-amber-500', action: 'Commented', target: 'Item 1A — Risk Factors', detail: 'New tariff-related risk factor language drafted — needs review', time: '3 days ago' },
+    ];
+
+    function FilingsPage() {
+      const [sf, setSf] = useState(0);
+      const [expandedItem, setExpandedItem] = useState(null);
+      const [activeTab, setActiveTab] = useState('checklist');
+      const [signoffs, setSignoffs] = useState({});
+      const f = tenQFilings[sf];
+      const ic = f.status === 'in-progress';
+
+      const allItems = tenQParts.flatMap(p => p.items);
+      const completedItems = allItems.filter(i => i.status === 'complete').length;
+      const inProgressItems = allItems.filter(i => i.status === 'in-progress').length;
+      const notStartedItems = allItems.filter(i => i.status === 'not-started').length;
+      const blockedItems = allItems.filter(i => i.blocked).length;
+      const overdueItems = allItems.filter(i => i.status !== 'complete' && ['Apr 10','Apr 18'].includes(i.due)).length;
+
+      const daysRemaining = 53;
+
+      return (
+        <div className="space-y-4">
+          {/* Filing selector cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            {tenQFilings.map((x, i) => (
+              <button key={i} onClick={() => setSf(i)}
+                className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all ${sf === i ? 'border-primary-400 bg-primary-50 ring-1 ring-primary-200' : 'border-gray-200 bg-white hover:border-gray-300 card-hover'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] sm:text-xs font-semibold text-gray-800">{x.period}</span>
+                  <span className={`px-1.5 py-px rounded-full text-[9px] font-medium ${x.status === 'filed' ? 'bg-emerald-100 text-emerald-700' : 'bg-primary-100 text-primary-700'}`}>
+                    {x.status === 'filed' ? 'Filed' : 'In Progress'}
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-400 truncate">Period: {x.periodEnd}</div>
+                <div className="text-[10px] text-gray-400 truncate">{x.status === 'filed' ? `Filed: ${x.filingDate}` : `Deadline: ${x.deadline}`}</div>
+                <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${x.status === 'filed' ? 'bg-emerald-500' : 'bg-primary-500'}`} style={{ width: `${x.pct}%` }}></div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Workflow stages (in-progress only) */}
+          {ic && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Workflow</h2>
+              <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                {filingWorkflowStages.map((s, i) => (
+                  <React.Fragment key={i}>
+                    <div className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-medium ${s.status === 'active' ? 'bg-primary-600 text-white' : s.status === 'complete' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{s.label}</div>
+                    {i < filingWorkflowStages.length - 1 && <div className="shrink-0 w-4 h-px bg-gray-300"></div>}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Financial highlights (filed filings only) */}
+          {!ic && f.revenue && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[{ l: 'Net Revenue', v: f.revenue }, { l: 'Net Income', v: f.netIncome }, { l: 'Total Assets', v: f.totalAssets }, { l: 'Earnings Per Share', v: f.eps }].map((m, i) => (
+                  <div key={i} className="bg-white rounded-xl border border-gray-200 p-3 card-hover">
+                    <div className="text-[10px] text-gray-400 font-medium">{m.l}</div>
+                    <div className="text-lg font-bold text-gray-900">{m.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Revenue by Segment</h2>
+                <div className="grid grid-cols-3 gap-3">
+                  {[{ l: 'North America', v: f.segments.na, bg: 'bg-primary-50', tc: 'text-primary-700' }, { l: 'International', v: f.segments.intl, bg: 'bg-emerald-50', tc: 'text-emerald-700' }, { l: 'AWS', v: f.segments.aws, bg: 'bg-amber-50', tc: 'text-amber-700' }].map((s, i) => (
+                    <div key={i} className={`${s.bg} rounded-lg p-2.5 sm:p-3 text-center`}>
+                      <div className="text-[10px] text-gray-500 font-medium">{s.l}</div>
+                      <div className={`text-base font-bold ${s.tc}`}>{s.v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quarter-over-Quarter comparison */}
+              {sf < tenQFilings.length - 1 && (() => {
+                const prev = tenQFilings[sf + 1];
+                if (!prev || !prev.revenue) return null;
+                const parse = v => parseFloat(v.replace(/[$B,]/g, ''));
+                const items = [
+                  { l: 'Revenue', curr: f.revenue, prev: prev.revenue },
+                  { l: 'Net Income', curr: f.netIncome, prev: prev.netIncome },
+                  { l: 'Total Assets', curr: f.totalAssets, prev: prev.totalAssets },
+                  { l: 'EPS', curr: f.eps, prev: prev.eps },
+                ];
+                return (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+                    <h2 className="text-sm font-semibold text-gray-900 mb-3">Quarter-over-Quarter Comparison
+                      <span className="text-[10px] text-gray-400 font-normal ml-2">{f.period} vs {prev.period}</span>
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {items.map((m, i) => {
+                        const c = parse(m.curr);
+                        const p = parse(m.prev);
+                        const pct = p !== 0 ? ((c - p) / Math.abs(p) * 100) : 0;
+                        const isUp = pct > 0;
+                        return (
+                          <div key={i} className="bg-gray-50 rounded-lg p-2.5 text-center">
+                            <div className="text-[10px] text-gray-500 font-medium mb-1">{m.l}</div>
+                            <div className="text-sm font-bold text-gray-900">{m.curr}</div>
+                            <div className={`text-[10px] font-medium mt-0.5 flex items-center justify-center gap-0.5 ${isUp ? 'text-emerald-600' : 'text-red-600'}`}>
+                              <svg className={`w-3 h-3 ${isUp ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7"/></svg>
+                              {isUp ? '+' : ''}{pct.toFixed(1)}% vs {prev.period}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+
+          {/* Deadline countdown (in-progress only) */}
+          {ic && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Quarterly Report Timeline</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">10-Q for quarter ending {f.periodEnd}</p>
+                </div>
+                <div className="flex items-center gap-1.5 text-primary-700 shrink-0">
+                  <Icons.Calendar />
+                  <div>
+                    <span className="text-xs font-semibold">{f.deadline}</span>
+                    <p className="text-[10px] text-gray-400">SEC Deadline (40 days)</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+                <div className={`${daysRemaining <= 14 ? 'bg-red-600' : daysRemaining <= 30 ? 'bg-amber-500' : 'bg-primary-600'} text-white rounded-xl px-4 py-2.5 text-center shrink-0 w-full sm:w-auto`}>
+                  <div className="text-xl font-bold">{daysRemaining}</div>
+                  <div className="text-[10px] font-medium text-white/80">days left</div>
+                </div>
+                <div className="flex-1 grid grid-cols-3 gap-2 w-full">
+                  {[{ v: '13', l: 'to Q close' }, { v: '40', l: 'to review done' }, { v: `${daysRemaining}`, l: 'to filing' }].map((x, i) => (
+                    <div key={i} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+                      <div className="text-sm sm:text-base font-bold text-gray-800">{x.v}</div>
+                      <div className="text-[9px] text-gray-400 font-medium">{x.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary-500 rounded-full progress-bar" style={{ width: `${f.pct}%` }}></div>
+                </div>
+                <div className="flex justify-between mt-1.5 overflow-x-auto gap-1">
+                  {['Q Ends|Mar 31', 'Draft Done|Apr 15', 'XBRL Tag|Apr 22', 'Review|Apr 30', 'Filing|May 10'].map((m, i) => {
+                    const [l, dd] = m.split('|');
+                    return (
+                      <div key={i} className="text-center shrink-0 min-w-0">
+                        <div className="text-[8px] sm:text-[9px] font-semibold text-gray-600 whitespace-nowrap">{l}</div>
+                        <div className="text-[8px] sm:text-[9px] text-gray-400">{dd}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Checklist progress + Alerts (in-progress only) */}
+          {ic && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Donut chart */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Checklist Progress</h2>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-20 h-20 shrink-0">
+                    <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" strokeWidth="8"/>
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="#3B82F6" strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray={`${Math.round((completedItems / allItems.length) * 264)} ${264 - Math.round((completedItems / allItems.length) * 264)}`}
+                        className="transition-all duration-1000"/>
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold text-gray-900">{completedItems}/{allItems.length}</span>
+                      <span className="text-[9px] text-gray-400 font-medium">items</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    {[
+                      ['Complete', completedItems, 'bg-emerald-500'],
+                      ['In Progress', inProgressItems, 'bg-primary-500'],
+                      ['Not Started', notStartedItems, 'bg-gray-300'],
+                    ].map(([label, count, color], i) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px]">
+                        <div className={`w-2 h-2 rounded-full ${color}`}></div>
+                        <span className="text-gray-600">{label}</span>
+                        <span className="font-semibold text-gray-800 ml-auto">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Alerts & Blockers */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Alerts & Blockers</h2>
+                <div className="space-y-2">
+                  {blockedItems > 0 && (
+                    <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-red-50 border border-red-100">
+                      <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <svg className="w-3.5 h-3.5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-red-800">{blockedItems} Blocked Item{blockedItems > 1 ? 's' : ''}</div>
+                        {allItems.filter(i => i.blocked).map((item, idx) => (
+                          <p key={idx} className="text-[10px] text-red-600 mt-0.5">{item.item} {item.name} — {item.notes[0]}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {daysRemaining <= 30 && (
+                    <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-amber-50 border border-amber-100">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <Icons.Clock />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-amber-800">Deadline Approaching</div>
+                        <p className="text-[10px] text-amber-600 mt-0.5">{daysRemaining} days until SEC filing deadline. {allItems.length - completedItems} items still pending.</p>
+                      </div>
+                    </div>
+                  )}
+                  {overdueItems > 0 && (
+                    <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                      <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <svg className="w-3.5 h-3.5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-orange-800">{overdueItems} Approaching Due Date</div>
+                        <p className="text-[10px] text-orange-600 mt-0.5">Items with due dates in the next 5 days need attention.</p>
+                      </div>
+                    </div>
+                  )}
+                  {blockedItems === 0 && daysRemaining > 30 && overdueItems === 0 && (
+                    <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-emerald-50 border border-emerald-100">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                        <Icons.Check />
+                      </div>
+                      <div className="text-[11px] font-semibold text-emerald-800">All Clear — No blockers or overdue items</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Main content grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Filing Details */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 card-hover">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Filing Details</h2>
+              <div className="space-y-2">
+                {[
+                  ['Form Type', '10-Q'],
+                  ['Registrant', COMPANY.name],
+                  ['CIK', COMPANY.cik],
+                  ['Period End', f.periodEnd],
+                  ['Deadline', f.deadline],
+                  ['Filer Category', COMPANY.filerCategory],
+                  ['Fiscal Year End', COMPANY.fiscalYearEnd],
+                  ['Accession #', f.accession],
+                  ...(f.filingDate ? [['Filing Date', f.filingDate]] : []),
+                ].map(([k, v], i) => (
+                  <div key={i} className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">{k}</span>
+                    <span className="font-medium text-gray-800 text-right">{v}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                {ic ? (
+                  <>
+                    <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                      <Icons.Eye /> Preview
+                    </button>
+                    <button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                      <Icons.Download /> Export
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                      <Icons.Eye /> View on EDGAR
+                    </button>
+                    <button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                      <Icons.Download /> Export
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Tabbed content — Checklist / Activity */}
+            <div className="lg:col-span-2 space-y-3">
+              {/* Tab bar */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    {[['checklist', 'Checklist'], ['activity', 'Activity']].map(([id, label]) => (
+                      <button key={id} onClick={() => setActiveTab(id)}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${activeTab === id ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+                        {label}
+                        {id === 'activity' && <span className="ml-1 px-1.5 py-px rounded-full bg-gray-200 text-gray-600 text-[9px] font-bold">{tenQActivity.length}</span>}
+                        {id === 'checklist' && ic && blockedItems > 0 && <span className="ml-1 px-1.5 py-px rounded-full bg-red-100 text-red-600 text-[9px] font-bold">{blockedItems}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {activeTab === 'checklist' && <span className="text-[10px] text-gray-400">{allItems.length} items</span>}
+                </div>
+
+                {/* Activity tab */}
+                {activeTab === 'activity' && (
+                  <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+                    {tenQActivity.map((entry, i) => (
+                      <div key={i} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-7 h-7 rounded-full ${entry.color} flex items-center justify-center shrink-0`}>
+                            <span className="text-white text-[9px] font-bold">{entry.avatar}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-semibold text-gray-800">{entry.user}</span>
+                              <span className={`px-1.5 py-px rounded text-[9px] font-medium ${
+                                entry.action === 'Flagged' ? 'bg-red-100 text-red-600' :
+                                entry.action === 'Updated' || entry.action === 'Uploaded' ? 'bg-blue-100 text-blue-600' :
+                                entry.action === 'Commented' ? 'bg-gray-100 text-gray-600' :
+                                entry.action === 'Approved' ? 'bg-emerald-100 text-emerald-600' :
+                                'bg-violet-100 text-violet-600'
+                              }`}>{entry.action}</span>
+                              <span className="text-xs text-gray-600 truncate">{entry.target}</span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{entry.detail}</p>
+                            <span className="text-[10px] text-gray-400 mt-1 block">{entry.time}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Checklist tab */}
+                {activeTab === 'checklist' && (
+                  <div>
+                    {tenQParts.map((part, pi) => (
+                      <div key={pi}>
+                        <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 border-t border-t-gray-100">
+                          <h3 className="text-xs font-semibold text-gray-700">{part.part}</h3>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {part.items.map((item, ii) => {
+                            const itemKey = `${pi}-${ii}`;
+                            const isExpanded = expandedItem === itemKey;
+                            return (
+                              <div key={ii}>
+                                <div onClick={() => setExpandedItem(isExpanded ? null : itemKey)}
+                                  className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer group ${isExpanded ? 'bg-primary-50' : ''}`}>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-2.5 min-w-0">
+                                      {ic ? (
+                                        item.status === 'complete' ? (
+                                          <div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                          </div>
+                                        ) : (
+                                          <div className={`w-4 h-4 mt-0.5 rounded-full border-2 shrink-0 ${item.status === 'in-progress' ? 'border-primary-400 bg-primary-50' : 'border-gray-300'}`}></div>
+                                        )
+                                      ) : (
+                                        <div className="w-4 h-4 mt-0.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        </div>
+                                      )}
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-[10px] font-mono font-semibold text-primary-600">{item.item}</span>
+                                          <span className="text-xs font-medium text-gray-800">{item.name}</span>
+                                          {item.blocked && <span className="px-1.5 py-px rounded-full bg-red-100 text-red-600 text-[9px] font-bold">Blocked</span>}
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{item.desc}</p>
+                                        {ic && (
+                                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                                            <span className="text-[10px] text-gray-400">Assignee: <span className="font-medium text-gray-600">{item.assignee}</span></span>
+                                            <span className="text-[10px] text-gray-400">Due: <span className="font-medium text-gray-600">{item.due}</span></span>
+                                            <span className="text-[10px] text-gray-400">Reviewer: <span className="font-medium text-gray-600">{item.reviewer}</span></span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                                      {ic && <span className={`hidden sm:inline px-2 py-px rounded-full text-[10px] font-medium ${getStatusColor(item.status)}`}>{getStatusLabel(item.status)}</span>}
+                                      <svg className={`w-3 h-3 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Expanded detail panel */}
+                                {isExpanded && (
+                                  <div className="px-4 pb-4 bg-gray-50 border-b border-gray-100">
+                                    <div className="ml-7 space-y-3 pt-2">
+                                      {/* Attachments */}
+                                      {item.files && item.files.length > 0 && (
+                                        <div>
+                                          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Attachments</div>
+                                          <div className="space-y-1">
+                                            {item.files.map((file, fi) => (
+                                              <div key={fi} className="flex items-center gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-colors cursor-pointer">
+                                                <div className="w-6 h-6 rounded bg-emerald-50 flex items-center justify-center shrink-0">
+                                                  <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                                                </div>
+                                                <span className="text-[11px] text-gray-700 truncate">{file}</span>
+                                                <svg className="w-3 h-3 text-gray-400 ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Notes */}
+                                      {item.notes && item.notes.length > 0 && (
+                                        <div>
+                                          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Notes</div>
+                                          {item.notes.map((note, ni) => (
+                                            <div key={ni} className="p-2 rounded-lg bg-amber-50 border border-amber-100 text-[11px] text-amber-800">{note}</div>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {/* Sign-off workflow */}
+                                      {ic && (
+                                        <div>
+                                          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Sign-off</div>
+                                          <div className="flex items-center gap-2">
+                                            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border ${signoffs[itemKey + '-prep'] ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer'}`}
+                                              onClick={() => !signoffs[itemKey + '-prep'] && setSignoffs(prev => ({ ...prev, [itemKey + '-prep']: true }))}>
+                                              {signoffs[itemKey + '-prep'] ? (
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                              ) : (
+                                                <div className="w-3 h-3 rounded-full border-2 border-gray-300"></div>
+                                              )}
+                                              Preparer: {item.assignee}
+                                            </div>
+                                            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                                            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium border ${signoffs[itemKey + '-review'] ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : signoffs[itemKey + '-prep'] ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer' : 'bg-gray-50 border-gray-100 text-gray-400'}`}
+                                              onClick={() => signoffs[itemKey + '-prep'] && !signoffs[itemKey + '-review'] && setSignoffs(prev => ({ ...prev, [itemKey + '-review']: true }))}>
+                                              {signoffs[itemKey + '-review'] ? (
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                              ) : (
+                                                <div className="w-3 h-3 rounded-full border-2 border-gray-300"></div>
+                                              )}
+                                              Reviewer: {item.reviewer}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     // ══════════════════════════════════════════
     // XBRL TAGGING PAGE (fully interactive)
@@ -2697,11 +3471,16 @@
     function PlaceholderPage({title,desc}){return<div className="flex items-center justify-center h-64"><div className="text-center"><h2 className="text-lg font-semibold text-gray-800 mb-1">{title}</h2><p className="text-sm text-gray-500">{desc}</p></div></div>}
 
     function App() {
+      const { user, loading: authLoading } = useAuth();
       const [activePage, setActivePage] = useState('dashboard');
       const [mobileOpen, setMobileOpen] = useState(false);
       const [showNewCompany, setShowNewCompany] = useState(false);
       const [selectedCompany, setSelectedCompany] = useState(0);
       const [companies, setCompanies] = useState(companyList);
+
+      // Auth gate
+      if (authLoading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-sm text-gray-500">Loading...</div></div>;
+      if (!user) return <LoginPage />;
       const wizardDirtyRef = useRef(false);
       const wizardExitCbRef = useRef(null);
       const guardedCloseWizard = (cb) => {
@@ -2759,7 +3538,7 @@
         </div>
       );
     }
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<AuthProvider><App /></AuthProvider>);
   </script>
 </body>
 </html>

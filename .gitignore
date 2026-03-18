@@ -1,1 +1,20 @@
+# Claude Code
 .claude/settings.local.json
+.agents/
+
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Supabase local
+backend/supabase/.temp/
+backend/supabase/.branches/
